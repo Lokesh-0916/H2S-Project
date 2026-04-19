@@ -4,6 +4,7 @@
 'use strict';
 
 const charts = {};
+const API_BASE = 'http://localhost:5000/api';
 
 // ─── AUTH ────────────────────────────────────────────────────────
 const Auth = {
@@ -92,7 +93,7 @@ function loginStore() {
   const acc = MOCK_DATA.storeAccounts.find(a => a.id === pid && a.pin === pin);
   if (!acc)  { _shake('storePinInput'); document.getElementById('storePinInput').value = ''; showToast('Incorrect PIN. Please try again.','error'); return; }
   const btn = document.getElementById('storeLoginBtn');
-  btn.textContent = 'Logging in…'; btn.disabled = true;
+  btn.textContent = 'Logging in...'; btn.disabled = true;
   setTimeout(() => { Auth.login({ role:'store', pharmacyId:acc.id, name:acc.name }); launchApp(); }, 700);
 }
 
@@ -102,7 +103,7 @@ function loginUser() {
   if (!name)             { _shake('userNameInput');  showToast('Please enter your name.','error'); return; }
   if (phone.length < 10) { _shake('userPhoneInput'); showToast('Enter a valid 10-digit number.','error'); return; }
   const btn = document.getElementById('userLoginBtn');
-  btn.textContent = 'Signing in…'; btn.disabled = true;
+  btn.textContent = 'Signing in...'; btn.disabled = true;
   setTimeout(() => { Auth.login({ role:'user', name, phone }); launchApp(); }, 700);
 }
 
@@ -156,6 +157,8 @@ function launchApp() {
     renderGenericTable();
   }
   renderAlertsPanelContent();
+  updateTransferBadge();
+  updateAlertsBadge();
 }
 
 // ─── ALERTS PANEL ────────────────────────────────────────────────
@@ -231,7 +234,10 @@ function navigate(sectionId, btn) {
   _setActive(sectionId);
   activateSection(sectionId);
 
-  if (sectionId === 'disease-monitor')   initDiseaseCharts();
+  if (sectionId === 'disease-monitor') {
+    initDiseaseCharts();
+    fetchExternalData();
+  }
   if (sectionId === 'inventory')         renderInventory();
   if (sectionId === 'redistribution')    initRedistributionChart();
   if (sectionId === 'analytics')         initAnalyticsCharts();
@@ -303,29 +309,37 @@ function renderDashAlerts() {
     </div>`).join('');
 }
 
-function renderDashLowStock() {
+async function renderDashLowStock() {
   const c = document.getElementById('dashLowStock');
   if (!c) return;
-  const ph = MOCK_DATA.pharmacies.find(p => p.id === Auth.phId());
-  if (!ph) { c.innerHTML = '<div style="color:var(--text-muted);font-size:13px;">No data.</div>'; return; }
-  const items = ph.inventory.map(i => ({ ...i, pct: (i.stock/i.threshold)*100 })).sort((a,b)=>a.pct-b.pct).slice(0,5);
-  c.innerHTML = items.map(it => {
-    const pct = Math.min(it.pct,100).toFixed(0);
-    const cls = it.pct < 30 ? 'red' : it.pct < 100 ? 'amber' : 'green';
-    return `<div class="stock-row">
-      <div class="stock-info">
-        <span class="stock-name">${it.medicine}</span>
-        <span class="stock-count ${cls === 'red' ? 'critical' : cls === 'amber' ? 'warning' : 'ok'}">${it.stock} / ${it.threshold}</span>
-      </div>
-      <div class="progress-bar"><div class="progress-fill ${cls}" style="width:${pct}%"></div></div>
-    </div>`;
-  }).join('');
+  const phId = Auth.phId();
+  try {
+    const res = await fetch(`${API_BASE}/inventory/${phId}`);
+    const items = await res.json();
+    if (!items || !items.length) { c.innerHTML = '<div style="color:var(--text-muted);font-size:13px;">No data. Seed inventory to see stock.</div>'; return; }
+    
+    const lowStock = items.map(i => ({ ...i, pct: (i.stock/i.threshold)*100 })).sort((a,b)=>a.pct-b.pct).slice(0,5);
+    c.innerHTML = lowStock.map(it => {
+      const pct = Math.min(it.pct,100).toFixed(0);
+      const cls = it.pct < 30 ? 'red' : it.pct < 100 ? 'amber' : 'green';
+      return `<div class="stock-row">
+        <div class="stock-info">
+          <span class="stock-name">${it.medicine}</span>
+          <span class="stock-count ${cls === 'red' ? 'critical' : cls === 'amber' ? 'warning' : 'ok'}">${it.stock} / ${it.threshold}</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill ${cls}" style="width:${pct}%"></div></div>
+      </div>`;
+    }).join('');
+  } catch (err) {
+    c.innerHTML = '<div style="color:var(--text-muted);font-size:13px;">Failed to fetch dashboard stock.</div>';
+  }
 }
 
-function initDashTrendChart() {
+async function initDashTrendChart() {
   destroyChart('dashTrend');
   const ctx = document.getElementById('trendChartDash').getContext('2d');
-  const d = MOCK_DATA.diseaseTrend;
+  const fetchedTrend = await fetchChartTrends();
+  const d = fetchedTrend || MOCK_DATA.diseaseTrend;
   charts.dashTrend = new Chart(ctx, {
     type: 'line',
     data: { labels: d.labels, datasets: [
@@ -340,13 +354,33 @@ function initDashTrendChart() {
   });
 }
 
-function initDashDonut() {
+async function initDashDonut() {
   destroyChart('dashDonut');
   const ctx = document.getElementById('demandDonutDash').getContext('2d');
+  const phId = Auth.phId();
+  
+  let labels = ['Paracetamol','Azithromycin','ORS Sachets','Cetirizine','Omeprazole','Other'];
+  let values = [35,18,22,12,8,5];
+
+  try {
+    const res = await fetch(`${API_BASE}/inventory/${phId}`);
+    const items = await res.json();
+    if (items && items.length > 0) {
+      const sorted = [...items].sort((a,b) => b.stock - a.stock).slice(0, 5);
+      labels = sorted.map(s => s.medicine);
+      values = sorted.map(s => s.stock);
+      const otherStock = items.slice(5).reduce((acc,curr) => acc + curr.stock, 0);
+      if (otherStock > 0) {
+        labels.push('Other');
+        values.push(otherStock);
+      }
+    }
+  } catch (err) { console.warn("Donut fetch failed, using fallback."); }
+
   charts.dashDonut = new Chart(ctx, {
     type:'doughnut',
-    data:{ labels:['Paracetamol','Azithromycin','ORS Sachets','Cetirizine','Omeprazole','Other'],
-      datasets:[{ data:[35,18,22,12,8,5],
+    data:{ labels:labels,
+      datasets:[{ data:values,
         backgroundColor:[CC.purple,CC.teal,CC.amber,CC.blue,CC.red,CC.green],
         borderWidth:2, borderColor:'transparent' }]
     },
@@ -422,14 +456,25 @@ function renderPurchaseHistory() {
 }
 
 // ─── DISEASE MONITOR ─────────────────────────────────────────────
-function renderOutbreakCards() {
-  const outbreaks = [
-    { disease:'Dengue',        cases:145, prev:110, severity:'HIGH'   },
-    { disease:'Flu/Influenza', cases:102, prev:88,  severity:'MEDIUM' },
-    { disease:'Malaria',       cases:28,  prev:20,  severity:'MEDIUM' },
-    { disease:'Typhoid',       cases:12,  prev:10,  severity:'LOW'    },
-  ];
-  const clsMap = { HIGH:'badge-red', MEDIUM:'badge-amber', LOW:'badge-blue' };
+async function renderOutbreakCards() {
+  let outbreaks = await fetchOutbreakAlerts();
+
+  if (!outbreaks) {
+    outbreaks = [
+      { disease:'Dengue',        cases:145, prev:110, severity:'HIGH'   },
+      { disease:'Flu/Influenza', cases:102, prev:88,  severity:'MEDIUM' },
+      { disease:'Malaria',       cases:28,  prev:20,  severity:'MEDIUM' },
+      { disease:'Typhoid',       cases:12,  prev:10,  severity:'LOW'    },
+    ];
+  } else {
+    outbreaks = outbreaks.map(o => ({
+      disease: o.disease + ` (${o.region})`,
+      cases: o.cases,
+      prev: Math.floor(o.cases * (o.trend === 'Rising' ? 0.8 : o.trend === 'Falling' ? 1.2 : 1)),
+      severity: o.level
+    })).sort((a,b) => b.cases - a.cases).slice(0, 6);
+  }
+  const clsMap = { HIGH:'badge-red', MEDIUM:'badge-amber', LOW:'badge-blue', CRITICAL:'badge-red' };
   document.getElementById('outbreakCards').innerHTML = outbreaks.map(o => {
     const g = (((o.cases-o.prev)/o.prev)*100).toFixed(0);
     const barCls = o.severity==='HIGH'?'red' : o.severity==='MEDIUM'?'amber':'green';
@@ -448,11 +493,12 @@ function renderOutbreakCards() {
   }).join('');
 }
 
-function initDiseaseCharts() {
-  renderOutbreakCards();
+async function initDiseaseCharts() {
+  await renderOutbreakCards();
   destroyChart('diseaseLine');
   const ctx = document.getElementById('diseaseLineChart').getContext('2d');
-  const d = MOCK_DATA.diseaseTrend;
+  const fetchedTrend = await fetchChartTrends();
+  const d = fetchedTrend || MOCK_DATA.diseaseTrend;
   charts.diseaseLine = new Chart(ctx, {
     type:'line',
     data:{ labels:d.labels, datasets:[
@@ -519,24 +565,40 @@ function runDemandForecast() {
 // ─── INVENTORY ───────────────────────────────────────────────────
 let _editingRow = null; // { phId, medicine }
 
-function renderInventory() {
+async function renderInventory() {
   const phId = Auth.phId();
-  const ph   = MOCK_DATA.pharmacies.find(p => p.id === phId);
-  if (!ph) { document.getElementById('inventoryTables').innerHTML = '<div class="card flex-center" style="height:200px;color:var(--text-muted);">No inventory data available.</div>'; return; }
+  if (!phId) return;
+
+  let inventoryData = [];
+  try {
+    const res = await fetch(`${API_BASE}/inventory/${phId}`);
+    inventoryData = await res.json();
+  } catch (err) {
+    console.error("Failed to fetch inventory", err);
+  }
+
+  const ph = MOCK_DATA.pharmacies.find(p => p.id === phId) || { name: 'Your Pharmacy', location: '' };
+
+  if (!inventoryData || inventoryData.length === 0) { 
+    document.getElementById('inventoryTables').innerHTML = '<div class="card flex-center" style="height:200px;color:var(--text-muted);">No inventory data available. Try seeding the database first!</div>'; 
+    return; 
+  }
 
   const sub = document.getElementById('inventorySubtitle');
   if (sub) sub.textContent = `Stock levels for ${ph.name} · ${ph.location}`;
 
   let critical=0, low=0, total=0;
-  ph.inventory.forEach(it => { total += it.stock; const p = it.stock/it.threshold; if(p<0.5) critical++; else if(p<1) low++; });
+  inventoryData.forEach(it => { total += it.stock; const p = it.stock/it.threshold; if(p<0.5) critical++; else if(p<1) low++; });
+
+  updateInventoryBadge(inventoryData);
 
   document.getElementById('invSummaryCards').innerHTML = `
     <div class="stat-card teal"><div class="stat-top"><span class="stat-sup">Total</span></div><div class="stat-value">${total.toLocaleString('en-IN')}</div><div class="stat-label">Units in Stock</div></div>
     <div class="stat-card red"><div class="stat-top"><span class="stat-sup">Urgent</span></div><div class="stat-value">${critical}</div><div class="stat-label">Critical Items</div></div>
     <div class="stat-card amber"><div class="stat-top"><span class="stat-sup">Warning</span></div><div class="stat-value">${low}</div><div class="stat-label">Low Stock</div></div>
-    <div class="stat-card green"><div class="stat-top"><span class="stat-sup">Healthy</span></div><div class="stat-value">${ph.inventory.length-critical-low}</div><div class="stat-label">Items OK</div></div>`;
+    <div class="stat-card green"><div class="stat-top"><span class="stat-sup">Healthy</span></div><div class="stat-value">${inventoryData.length-critical-low}</div><div class="stat-label">Items OK</div></div>`;
 
-  const rows = ph.inventory.map(it => {
+  const rows = inventoryData.map(it => {
     const pct    = (it.stock/it.threshold*100).toFixed(0);
     const stCls  = pct < 30 ? 'badge-red' : pct < 100 ? 'badge-amber' : 'badge-green';
     const stLbl  = pct < 30 ? 'Critical'  : pct < 100 ? 'Low'         : 'OK';
@@ -546,15 +608,13 @@ function renderInventory() {
       <td><strong>${it.medicine}</strong></td>
       <td id="invStockCell_${safeName}">${it.stock}</td>
       <td>${it.threshold}</td>
+      <td>${it.sold || 0}</td>
+      <td>${it.transferred || 0}</td>
       <td><span class="badge ${stCls}">${stLbl}</span></td>
-      <td style="width:140px;">
-        <div class="progress-bar"><div class="progress-fill ${barCls}" style="width:${Math.min(pct,100)}%"></div></div>
-        <span style="font-size:11px;color:var(--text-muted);">${pct}%</span>
-      </td>
       <td>
         <div style="display:flex;gap:6px;" id="invActions_${safeName}">
-          <button class="btn btn-outline btn-sm" onclick="editStockRow('${phId}','${it.medicine}')">Edit</button>
-          <button class="btn btn-outline btn-sm" onclick="showToast('Order placed: ${it.medicine}','success')">Order</button>
+          <button class="btn btn-primary btn-sm" onclick="sellMedicine('${phId}','${it.medicine}')">Sell</button>
+          <button class="btn btn-outline btn-sm" onclick="restockMedicine('${phId}','${it.medicine}')">Restock</button>
         </div>
       </td>
     </tr>`;
@@ -564,11 +624,104 @@ function renderInventory() {
     <div class="card">
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Medicine</th><th>In Stock</th><th>Threshold</th><th>Status</th><th>Health</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Medicine</th><th>In Stock</th><th>Threshold</th><th>Sold</th><th>Transferred</th><th>Status</th><th>Actions</th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>
     </div>`;
+}
+
+async function sellMedicine(phId, medicine) {
+  // Find current stock from table UI or fetch (UI is faster)
+  const row = document.getElementById(`invRow_${medicine.replace(/[^a-z0-9]/gi, '_')}`);
+  const stockCell = row ? row.querySelector('[id^="invStockCell_"]') : null;
+  const currentStock = stockCell ? parseInt(stockCell.textContent) : 0;
+
+  const qty = prompt(`How many units of ${medicine} are you selling? (Available: ${currentStock})`);
+  if (!qty || isNaN(qty) || parseInt(qty) <= 0) return;
+  
+  if (parseInt(qty) > currentStock) {
+    showToast(`Insufficient stock. You only have ${currentStock} units.`, 'error');
+    return;
+  }
+  
+  try {
+    const res = await fetch(`${API_BASE}/inventory/sell`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pharmacyId: phId, medicine: medicine, quantity: parseInt(qty) })
+    });
+    const data = await res.json();
+    if (data.status === 'success') {
+      showToast(data.message, 'success');
+      renderInventory();      // Refresh Inventory Tab
+      renderDashLowStock();   // Refresh Dashboard Low Stock Card
+      initDashDonut();        // Refresh Dashboard Donut Chart
+    } else {
+      showToast(data.message, 'error');
+    }
+  } catch (err) {
+    showToast('Failed to process sale.', 'error');
+  }
+}
+
+async function restockMedicine(phId, medicine) {
+  const qty = prompt(`How many units of ${medicine} are you restocking?`);
+  if (!qty || isNaN(qty) || parseInt(qty) <= 0) return;
+  
+  try {
+    const res = await fetch(`${API_BASE}/inventory/restock`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pharmacyId: phId, medicine: medicine, quantity: parseInt(qty) })
+    });
+    const data = await res.json();
+    if (data.status === 'success') {
+      showToast(data.message, 'success');
+      renderInventory();
+      renderDashLowStock();
+      initDashDonut();
+    } else {
+      showToast(data.message, 'error');
+    }
+  } catch (err) {
+    showToast('Failed to process restock.', 'error');
+  }
+}
+
+async function seedFullDB() {
+  if (!confirm("This will seed master medicines and reset all pharmacy inventory. Continue?")) return;
+  
+  const originalOverlay = document.getElementById('scanningOverlay');
+  if (originalOverlay) {
+    originalOverlay.classList.add('show');
+    document.getElementById('scanModalTitle').textContent = 'Initializing Database';
+    document.getElementById('scanModalSub').textContent = 'Seeding master data & inventory...';
+  }
+
+  try {
+    // 1. Seed Master Data
+    const res1 = await fetch(`${API_BASE}/seed-master`, { method: 'POST' });
+    const data1 = await res1.json();
+    
+    // 2. Seed Inventory
+    const res2 = await fetch(`${API_BASE}/seed-inventory`, { method: 'POST' });
+    const data2 = await res2.json();
+    
+    if (data1.status === 'success' && data2.status === 'success') {
+      showToast('Database fully initialized!', 'success');
+      renderInventory();
+      renderDashLowStock();
+      initDashDonut();
+    } else {
+      showToast('Partial failure during seeding: ' + (data1.message || data2.message), 'error');
+    }
+  } catch (err) {
+    showToast('Failed to connect to backend for seeding.', 'error');
+    console.error(err);
+  } finally {
+    if (originalOverlay) originalOverlay.classList.remove('show');
+  }
 }
 
 function editStockRow(phId, medicine) {
@@ -614,16 +767,15 @@ function cancelStockEdit(reRender=true) {
 function showRestockSuggestions() { showToast('Restock plan generated and sent to procurement.','success',4000); }
 
 // ─── AI SUGGESTIONS ──────────────────────────────────────────────
-function generateSuggestions(phId) {
-  const ph = MOCK_DATA.pharmacies.find(p => p.id === phId);
-  if (!ph) return [];
+function generateSuggestions(inventory, phId) {
+  if (!inventory || !inventory.length) return [];
   const trends = MOCK_DATA.purchaseTrends?.[phId];
   const outbreaks = [
     { disease:'Dengue',        growth:32, medicines:MOCK_DATA.diseaseDemandMap['Dengue'].medicines },
     { disease:'Flu/Influenza', growth:16, medicines:MOCK_DATA.diseaseDemandMap['Flu/Influenza'].medicines },
     { disease:'Malaria',       growth:9,  medicines:MOCK_DATA.diseaseDemandMap['Malaria'].medicines },
   ];
-  return ph.inventory.map(item => {
+  return inventory.map(item => {
     const stockPct = (item.stock/item.threshold)*100;
     let velocityScore = 0;
     if (trends?.weeklyData?.[item.medicine]) {
@@ -649,11 +801,19 @@ function generateSuggestions(phId) {
   }).filter(s => s.urgencyScore > 5).sort((a,b) => b.urgencyScore - a.urgencyScore);
 }
 
-function renderSuggestions() {
+async function renderSuggestions() {
   const phId = Auth.phId() || 'PH001';
-  const sug  = generateSuggestions(phId);
+  let inventory = [];
+  try {
+    const res = await fetch(`${API_BASE}/inventory/${phId}`);
+    inventory = await res.json();
+  } catch (err) {
+    console.error("Failed to fetch inventory for suggestions", err);
+  }
+
+  const sug = generateSuggestions(inventory, phId);
   const c    = document.getElementById('suggestionsList');
-  if (!sug.length) { c.innerHTML = '<div class="card flex-center" style="height:160px;color:var(--text-muted);">All stock levels healthy.</div>'; return; }
+  if (!sug.length) { c.innerHTML = `<div class="card flex-center" style="height:160px;color:var(--text-muted);">${inventory.length ? 'All stock levels healthy.' : 'No inventory data available. Seed DB first.'}</div>`; return; }
   c.innerHTML = sug.map((s,i) => {
     const cls   = s.urgencyScore>=70?'critical':s.urgencyScore>=40?'medium':'low';
     const label = s.urgencyScore>=70?'Critical':s.urgencyScore>=40?'Medium':'Low';
@@ -806,21 +966,39 @@ function filterTransfers(f, btn) {
   renderTransferRequests();
 }
 
-function renderTransferRequests() {
-  const all = MOCK_DATA.transferRequests;
+async function renderTransferRequests() {
+  const myPhId = Auth.phId();
+  // FILTER: Only show requests where I am sender or receiver
+  const all = MOCK_DATA.transferRequests.filter(r => r.fromPharmacy === myPhId || r.toPharmacy === myPhId);
+  
   const pending  = all.filter(r=>r.status==='pending').length;
   const approved = all.filter(r=>r.status==='approved').length;
   const rejected = all.filter(r=>r.status==='rejected').length;
+
+  updateTransferBadge();
 
   document.getElementById('transferStats').innerHTML = `
     <div class="stat-card amber"><div class="stat-top"><span class="stat-sup">Pending</span></div><div class="stat-value">${pending}</div><div class="stat-label">Awaiting Action</div></div>
     <div class="stat-card green"><div class="stat-top"><span class="stat-sup">Done</span></div><div class="stat-value">${approved}</div><div class="stat-label">Approved</div></div>
     <div class="stat-card red"><div class="stat-top"><span class="stat-sup">Declined</span></div><div class="stat-value">${rejected}</div><div class="stat-label">Rejected</div></div>
-    <div class="stat-card blue"><div class="stat-top"><span class="stat-sup">All</span></div><div class="stat-value">${all.length}</div><div class="stat-label">Total</div></div>`;
+    <div class="stat-card blue"><div class="stat-top"><span class="stat-sup">All</span></div><div class="stat-value">${all.length}</div><div class="stat-label">Total Transactions</div></div>`;
+
+  // Update Tab Counts
+  const tabs = document.querySelectorAll('#transferTabs .tab-btn');
+  if (tabs.length >= 2) {
+    const pendingSpan = tabs[1].querySelector('.tab-count');
+    if (pendingSpan) pendingSpan.textContent = pending;
+  }
 
   const filtered = _transferFilter==='all' ? all : all.filter(r=>r.status===_transferFilter);
   const c = document.getElementById('transferRequestsList');
-  if (!filtered.length) { c.innerHTML = `<div class="card flex-center" style="height:160px;color:var(--text-muted);">No ${_transferFilter} requests.</div>`; return; }
+  if (!filtered.length) { c.innerHTML = `<div class="card flex-center" style="height:160px;color:var(--text-muted);">No ${_transferFilter} requests involving your store.</div>`; return; }
+
+  let myInv = [];
+  try {
+    const res = await fetch(`${API_BASE}/inventory/${myPhId}`);
+    myInv = await res.json();
+  } catch (err) { console.error("Failed to fetch inventory for validation"); }
 
   c.innerHTML = filtered.map(r => {
     const urgCls = r.urgency==='critical'?'badge-red':r.urgency==='medium'?'badge-amber':'badge-teal';
@@ -828,11 +1006,37 @@ function renderTransferRequests() {
     const typeCls = r.type==='request'?'badge-purple':'badge-blue';
     const typeLabel = r.type==='request'?'Request IN':'Transfer OUT';
     const date = new Date(r.requestedAt).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'});
-    const actions = r.status==='pending' ? `
-      <div class="tr-actions">
-        <button class="btn btn-primary btn-sm" onclick="approveRequest('${r.id}')">Approve</button>
-        <button class="btn btn-danger btn-sm" onclick="rejectRequest('${r.id}')">Reject</button>
-      </div>` : '';
+    
+    // MUTUAL APPROVAL LOGIC
+    let actions = "";
+    if (r.status === 'pending') {
+      const isSender = r.fromPharmacy === myPhId;
+      const isReceiver = r.toPharmacy === myPhId;
+      
+      // If I am the one who needs to approve:
+      // Case A: Someone requested from me (I am Sender, it is a 'request')
+      // Case B: Someone is sending to me (I am Receiver, it is a 'send')
+      const needsMyApproval = (r.type === 'request' && isSender) || (r.type === 'send' && isReceiver);
+
+      if (needsMyApproval) {
+        // Validation: Only if I am the sender, I need to check my stock
+        const myStock = isSender ? (myInv.find(i => i.medicine === r.medicine)?.stock || 0) : 9999;
+        
+        if (isSender && myStock < r.quantity) {
+          actions = `<div class="tr-actions"><span style="font-size:12px;color:var(--accent-red);font-weight:600;">⚠️ Insufficient Stock (${myStock})</span></div>`;
+        } else {
+          actions = `
+            <div class="tr-actions">
+              <button class="btn btn-primary btn-sm" onclick="approveRequest('${r.id}')">${isReceiver ? 'Accept Stock' : 'Approve & Send'}</button>
+              <button class="btn btn-danger btn-sm" onclick="rejectRequest('${r.id}')">Reject</button>
+            </div>`;
+        }
+      } else {
+        const otherParty = isSender ? r.toPharmacy : r.fromPharmacy;
+        actions = `<div class="tr-actions"><span style="font-size:12px;color:var(--text-muted);">Awaiting ${isSender ? 'receiver' : 'sender'} approval</span></div>`;
+      }
+    }
+
     return `<div class="transfer-request-card" id="trCard-${r.id}">
       <div class="tr-header">
         <span class="tr-id-badge">${r.id}</span>
@@ -854,10 +1058,39 @@ function renderTransferRequests() {
   }).join('');
 }
 
-function approveRequest(id) {
+async function approveRequest(id) {
   const r = MOCK_DATA.transferRequests.find(r=>r.id===id); if(!r) return;
-  r.status='approved'; renderTransferRequests(); updateTransferBadge();
-  showToast(`${id} approved — ${r.quantity} units of ${r.medicine} confirmed.`,'success',4000);
+  
+  try {
+    const res = await fetch(`${API_BASE}/inventory/transfer`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fromPharmacy: r.fromPharmacy,
+        toPharmacy: r.toPharmacy,
+        medicine: r.medicine,
+        quantity: r.quantity
+      })
+    });
+    const data = await res.json();
+    
+    if (data.status === 'success') {
+      r.status='approved'; 
+      renderTransferRequests(); 
+      updateTransferBadge();
+      
+      // Also update inventory UI if we are looking at it
+      if (document.getElementById('section-inventory').classList.contains('active')) {
+        renderInventory();
+      }
+      
+      showToast(`${id} approved — ${r.quantity} units of ${r.medicine} confirmed.`,'success',4000);
+    } else {
+      showToast(`Transfer failed: ${data.message}`, 'error');
+    }
+  } catch (err) {
+    showToast('Failed to connect to backend server for transfer.', 'error');
+  }
 }
 function rejectRequest(id) {
   const r = MOCK_DATA.transferRequests.find(r=>r.id===id); if(!r) return;
@@ -865,27 +1098,161 @@ function rejectRequest(id) {
   showToast(`${id} rejected.`,'warning');
 }
 function updateTransferBadge() {
-  const n = MOCK_DATA.transferRequests.filter(r=>r.status==='pending').length;
-  const b = document.getElementById('pendingTransferBadge'); if(b) b.textContent = n;
+  const phId = Auth.phId();
+  const n = MOCK_DATA.transferRequests.filter(r => r.status === 'pending' && (r.fromPharmacy === phId || r.toPharmacy === phId)).length;
+  const b = document.getElementById('pendingTransferBadge'); 
+  if (b) {
+    b.textContent = n;
+    b.style.display = n > 0 ? 'inline-flex' : 'none';
+  }
+}
+
+function updateInventoryBadge(inventory) {
+  if (!inventory) return;
+  const critical = inventory.filter(it => (it.stock / it.threshold) < 0.5).length;
+  const b = document.getElementById('invAlertBadge');
+  if (b) {
+    b.textContent = critical;
+    b.style.display = critical > 0 ? 'inline-flex' : 'none';
+  }
+}
+
+function updateAlertsBadge() {
+  const n = MOCK_DATA.alerts.length;
+  const b = document.getElementById('alertsCount');
+  if (b) b.textContent = n;
 }
 
 // ─── REDISTRIBUTION ──────────────────────────────────────────────
-function initRedistributionChart() {
+async function initRedistributionChart() {
   destroyChart('redist');
   const ctx = document.getElementById('redistributionChart').getContext('2d');
   const meds = ['Paracetamol','Azithromycin','ORS Sachets','Cetirizine','Omeprazole'];
-  charts.redist = new Chart(ctx, {
-    type:'bar',
-    data:{ labels:meds, datasets:MOCK_DATA.pharmacies.map((ph,i)=>({
-      label:ph.name.split(' - ')[0],
-      data:meds.map(m=>ph.inventory.find(it=>it.medicine===m)?.stock||0),
-      backgroundColor:[CC.purple,CC.teal,CC.amber][i], borderRadius:4
-    })) },
-    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom', labels:{ boxWidth:10, padding:12 } } }, scales:{ x:{ grid:{ display:false } }, y:{ beginAtZero:true, grid:{ color:_gc() } } } }
-  });
+  
+  try {
+    // We need all pharmacies to show comparison. 
+    // For now, let's fetch individual inventories for the 3 main ones
+    const ids = ['PH001', 'PH002', 'PH003'];
+    const names = ['MedPlus', 'Apollo', 'Jan Aushadhi'];
+    const datasets = [];
+    const colors = [CC.purple, CC.teal, CC.amber];
+    
+    for (let i=0; i<ids.length; i++) {
+       const res = await fetch(`${API_BASE}/inventory/${ids[i]}`);
+       const inv = await res.json();
+       datasets.push({
+         label: names[i],
+         data: meds.map(m => inv.find(it => it.medicine === m)?.stock || 0),
+         backgroundColor: colors[i],
+         borderRadius: 4
+       });
+    }
+
+    charts.redist = new Chart(ctx, {
+      type:'bar',
+      data:{ labels:meds, datasets: datasets },
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom', labels:{ boxWidth:10, padding:12 } } }, scales:{ x:{ grid:{ display:false } }, y:{ beginAtZero:true, grid:{ color:_gc() } } } }
+    });
+    
+    renderRedistributionSuggestions();
+  } catch (err) { console.error("Redist Chart Error:", err); }
 }
-function approveTransfer(btn, med, qty) { btn.closest('.transfer-card').style.opacity='0.4'; btn.textContent='Approved'; btn.disabled=true; showToast(`Transfer approved: ${qty} units of ${med}.`,'success'); }
-function runAutoRedistribution() { showToast('Auto-optimization complete. 3 redistribution orders created.','success',4000); }
+
+async function renderRedistributionSuggestions() {
+  const c = document.getElementById('redistributionList');
+  if (!c) return;
+  const myPhId = Auth.phId();
+  
+  try {
+    const res = await fetch(`${API_BASE}/redistribution`);
+    const data = await res.json();
+    const allSug = data.suggestions || [];
+    
+    // FILTER: Only see suggestions where I am the sender or receiver
+    const filtered = allSug.filter(s => s.fromId === myPhId || s.toId === myPhId);
+    
+    if (!filtered.length) {
+      c.innerHTML = `<div class="card flex-center" style="height:120px;color:var(--text-muted);font-size:13px;">No suggestions involving your store at this time.</div>`;
+      return;
+    }
+    
+    // Fetch my inventory first for validation
+    const invRes = await fetch(`${API_BASE}/inventory/${myPhId}`);
+    const myInv = await invRes.json();
+
+    c.innerHTML = filtered.map(s => {
+      const isSender = s.fromId === myPhId;
+      const urgCls = s.urgency === 'URGENT' ? 'badge-red' : 'badge-amber';
+      
+      // AUTHORITY & VALIDATION
+      let action = "";
+      if (isSender) {
+        const myStock = myInv.find(i => i.medicine === s.medicine)?.stock || 0;
+        if (myStock < s.quantity) {
+          action = `<span style="font-size:12px;color:var(--accent-red);font-weight:600;">⚠️ Insufficient Stock (${myStock})</span>`;
+        } else {
+          action = `<button class="btn btn-primary btn-sm" onclick="executeRedistribution(this, '${s.fromId}', '${s.toId}', '${s.medicine}', ${s.quantity})">Dispatch Now</button>`;
+        }
+      } else {
+        action = `<span style="font-size:12px;color:var(--text-muted);">Awaiting dispatch from ${s.fromName}</span>`;
+      }
+
+      return `<div class="transfer-card">
+        <div class="transfer-flow">
+          <div class="transfer-from">
+            <div class="transfer-medicine">${s.medicine}</div>
+            <div class="transfer-qty">${s.surplus} units surplus</div>
+            <div class="transfer-pharmacy">${s.fromName}</div>
+          </div>
+          <div class="transfer-arrow">→</div>
+          <div class="transfer-to">
+            <div class="transfer-medicine">${s.toName}</div>
+            <div class="transfer-qty">${s.quantity} units needed</div>
+            <div class="transfer-pharmacy">Stock: ${s.current} / Threshold: ${s.threshold}</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;margin-top:12px;">
+          ${action}
+          <span class="badge ${urgCls}" style="margin-left:auto;">${s.urgency}</span>
+        </div>
+      </div>`;
+    }).join('');
+  } catch (err) {
+    c.innerHTML = `<div style="color:var(--accent-red);padding:20px;">Failed to load suggestions.</div>`;
+  }
+}
+
+async function executeRedistribution(btn, from, to, med, qty) {
+  try {
+    const res = await fetch(`${API_BASE}/inventory/transfer`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fromPharmacy: from, toPharmacy: to, medicine: med, quantity: qty })
+    });
+    const data = await res.json();
+    if (data.status === 'success') {
+       showToast(`Dispatched ${qty} units of ${med}!`, 'success');
+       btn.closest('.transfer-card').style.opacity = '0.4';
+       btn.textContent = 'Dispatched';
+       btn.disabled = true;
+       
+       // Real-time refresh across all tabs
+       renderInventory();
+       renderDashLowStock();
+       initDashDonut();
+       setTimeout(initRedistributionChart, 1500);
+    } else {
+       showToast(data.message, 'error');
+    }
+  } catch (err) {
+    showToast('Redistribution failed.', 'error');
+  }
+}
+
+function runAutoRedistribution() {
+  showToast('Recalculating optimization path...', 'success');
+  initRedistributionChart();
+}
 
 // ─── MEDICINE SEARCH ─────────────────────────────────────────────
 let _pendingPurchase = null;
@@ -1079,9 +1446,134 @@ function runCrisisSimulation() {
 
 // ─── INIT ────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-  Auth.init();
-  initTheme();
-  document.getElementById('storePinInput').addEventListener('keydown', e => { if(e.key==='Enter') loginStore(); });
-  document.getElementById('userPhoneInput').addEventListener('keydown', e => { if(e.key==='Enter') loginUser(); });
-  if (Auth.isLoggedIn()) launchApp();
+  try {
+    Auth.init();
+    initTheme();
+    
+    const storePin = document.getElementById('storePinInput');
+    if (storePin) storePin.addEventListener('keydown', e => { if(e.key==='Enter') loginStore(); });
+    
+    const userPhone = document.getElementById('userPhoneInput');
+    if (userPhone) userPhone.addEventListener('keydown', e => { if(e.key==='Enter') loginUser(); });
+    
+    if (Auth.isLoggedIn()) launchApp();
+  } catch (err) {
+    console.error("App initialization failed:", err);
+  }
 });
+
+// ─── EXTERNAL DATA (WHO & GOV) ───────────────────────────────────
+
+async function syncExternalData() {
+  const btn = document.getElementById('syncExternalBtn');
+  const originalHtml = btn.innerHTML;
+  btn.innerHTML = 'Syncing...';
+  btn.disabled = true;
+
+  try {
+    const res = await fetch(`${API_BASE}/sync`, { method: 'POST' });
+    const data = await res.json();
+    if (data.status === 'success') {
+      showToast(data.message, 'success');
+      await fetchExternalData();
+      if (document.getElementById('section-dashboard').classList.contains('active')) {
+        initDashTrendChart();
+      }
+      if (document.getElementById('section-disease-monitor').classList.contains('active')) {
+        initDiseaseCharts();
+      }
+    } else {
+      showToast(data.message, 'error');
+    }
+  } catch (err) {
+    showToast('Failed to connect to backend server.', 'error');
+  } finally {
+    btn.innerHTML = originalHtml;
+    btn.disabled = false;
+  }
+}
+
+async function fetchExternalData() {
+  try {
+    const res = await fetch(`${API_BASE}/external-data`);
+    const data = await res.json();
+    if (data && data.length > 0) {
+      renderExternalHealthData(data);
+    }
+  } catch (err) {
+    console.error('External data fetch failed', err);
+  }
+}
+
+function renderExternalHealthData(sources) {
+  const section = document.getElementById('externalHealthSection');
+  const container = document.getElementById('externalHealthCards');
+  if (!section || !container) return;
+
+  section.style.display = 'block';
+  container.innerHTML = sources.map(source => {
+    let contentHtml = '';
+    
+    if (source.source === 'WHO') {
+      contentHtml = `
+        <div class="table-wrap" style="max-height:200px;overflow-y:auto;">
+          <table style="font-size:12px;">
+            <thead><tr><th>Country</th><th>Year</th><th>Value</th></tr></thead>
+            <tbody>
+              ${source.data.map(d => `<tr><td>${d.country}</td><td>${d.year}</td><td>${d.value}</td></tr>`).join('')}
+            </tbody>
+          </table>
+        </div>`;
+    } else {
+      contentHtml = source.data.map(d => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border-color);">
+          <div>
+            <div style="font-weight:600;font-size:14px;">${d.region}: ${d.disease}</div>
+            <div style="font-size:11px;color:var(--text-muted);">${d.cases} cases · ${d.trend}</div>
+          </div>
+          <span class="badge ${d.level === 'HIGH' ? 'badge-red' : 'badge-amber'}">${d.level}</span>
+        </div>`).join('');
+    }
+
+    return `
+      <div class="card" style="border-left:4px solid var(--accent-purple);">
+        <div style="display:flex;justify-content:space-between;margin-bottom:12px;">
+          <div style="font-weight:700;color:var(--accent-purple);">${source.source}</div>
+          <div style="font-size:11px;color:var(--text-muted);">${source.title}</div>
+        </div>
+        ${contentHtml}
+      </div>`;
+  }).join('');
+}
+
+async function fetchChartTrends() {
+  try {
+    const res = await fetch(`${API_BASE}/external-data`);
+    const data = await res.json();
+    if (data && data.length > 0) {
+      const trendDoc = data.find(d => d.type === 'chart_trends');
+      if (trendDoc && trendDoc.data) {
+        return trendDoc.data;
+      }
+    }
+  } catch (err) {
+    console.error('Trend data fetch failed', err);
+  }
+  return null;
+}
+
+async function fetchOutbreakAlerts() {
+  try {
+    const res = await fetch(`${API_BASE}/external-data`);
+    const data = await res.json();
+    if (data && data.length > 0) {
+      const alertDoc = data.find(d => d.type === 'alerts');
+      if (alertDoc && alertDoc.data) {
+        return alertDoc.data;
+      }
+    }
+  } catch (err) {
+    console.error('Alert data fetch failed', err);
+  }
+  return null;
+}
