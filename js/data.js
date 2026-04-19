@@ -154,9 +154,7 @@ const MOCK_DATA = {
   stats: {
     totalPharmacies: 3,
     criticalAlerts: 4,
-    qrBlocked: 12,
     patientsSaved: 847,
-    moneySaved: 124500
   },
 
   // --- Transfer Requests ---

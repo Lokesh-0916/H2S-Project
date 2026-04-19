@@ -8,20 +8,20 @@ const charts = {};
 // ─── AUTH ────────────────────────────────────────────────────────
 const Auth = {
   _s: null,
-  init() { try { const s = localStorage.getItem('ms_session'); if (s) this._s = JSON.parse(s); } catch(e) { this._s = null; } },
-  login(s)    { this._s = s; localStorage.setItem('ms_session', JSON.stringify(s)); },
-  logout()    { this._s = null; localStorage.removeItem('ms_session'); },
-  isLoggedIn(){ return !!this._s; },
-  isStore()   { return this._s?.role === 'store'; },
-  isUser()    { return this._s?.role === 'user'; },
-  session()   { return this._s; },
-  phId()      { return this._s?.pharmacyId || null; },
+  init() { try { const s = localStorage.getItem('ms_session'); if (s) this._s = JSON.parse(s); } catch (e) { this._s = null; } },
+  login(s) { this._s = s; localStorage.setItem('ms_session', JSON.stringify(s)); },
+  logout() { this._s = null; localStorage.removeItem('ms_session'); },
+  isLoggedIn() { return !!this._s; },
+  isStore() { return this._s?.role === 'store'; },
+  isUser() { return this._s?.role === 'user'; },
+  session() { return this._s; },
+  phId() { return this._s?.pharmacyId || null; },
 };
 
 // ─── THEME ───────────────────────────────────────────────────────
 function _chartTheme(theme) {
   const dark = theme === 'dark';
-  Chart.defaults.color       = dark ? '#8899aa' : '#4a5568';
+  Chart.defaults.color = dark ? '#8899aa' : '#4a5568';
   Chart.defaults.borderColor = dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.07)';
   Object.values(charts).forEach(c => {
     if (c.options.scales) {
@@ -44,14 +44,14 @@ function toggleTheme() {
 }
 
 function _setThemeIcons(theme) {
-  const sunEl  = document.getElementById('iconSun');
+  const sunEl = document.getElementById('iconSun');
   const moonEl = document.getElementById('iconMoon');
   if (!sunEl || !moonEl) return;
   if (theme === 'dark') {
-    sunEl.style.display  = 'inline-flex'; // show sun (click → go light)
+    sunEl.style.display = 'inline-flex'; // show sun (click → go light)
     moonEl.style.display = 'none';
   } else {
-    sunEl.style.display  = 'none';
+    sunEl.style.display = 'none';
     moonEl.style.display = 'inline-flex'; // show moon (click → go dark)
   }
 }
@@ -69,7 +69,7 @@ let _role = null;
 function selectRole(role) {
   _role = role;
   const id = role === 'store' ? 'storeLoginForm' : 'userLoginForm';
-  document.getElementById('roleSelector').style.display  = 'none';
+  document.getElementById('roleSelector').style.display = 'none';
   const f = document.getElementById(id);
   f.style.display = 'block';
   f.classList.remove('slide-in');
@@ -79,46 +79,46 @@ function selectRole(role) {
 
 function resetRole() {
   _role = null;
-  document.getElementById('roleSelector').style.display    = 'flex';
-  document.getElementById('storeLoginForm').style.display  = 'none';
-  document.getElementById('userLoginForm').style.display   = 'none';
+  document.getElementById('roleSelector').style.display = 'flex';
+  document.getElementById('storeLoginForm').style.display = 'none';
+  document.getElementById('userLoginForm').style.display = 'none';
 }
 
 function loginStore() {
   const pid = document.getElementById('storeSelect').value;
   const pin = document.getElementById('storePinInput').value.trim();
-  if (!pid) { _shake('storeSelect'); showToast('Please select your pharmacy.','error'); return; }
-  if (!pin) { _shake('storePinInput'); showToast('Please enter your PIN.','error'); return; }
+  if (!pid) { _shake('storeSelect'); showToast('Please select your pharmacy.', 'error'); return; }
+  if (!pin) { _shake('storePinInput'); showToast('Please enter your PIN.', 'error'); return; }
   const acc = MOCK_DATA.storeAccounts.find(a => a.id === pid && a.pin === pin);
-  if (!acc)  { _shake('storePinInput'); document.getElementById('storePinInput').value = ''; showToast('Incorrect PIN. Please try again.','error'); return; }
+  if (!acc) { _shake('storePinInput'); document.getElementById('storePinInput').value = ''; showToast('Incorrect PIN. Please try again.', 'error'); return; }
   const btn = document.getElementById('storeLoginBtn');
   btn.textContent = 'Logging in…'; btn.disabled = true;
-  setTimeout(() => { Auth.login({ role:'store', pharmacyId:acc.id, name:acc.name }); launchApp(); }, 700);
+  setTimeout(() => { Auth.login({ role: 'store', pharmacyId: acc.id, name: acc.name }); launchApp(); }, 700);
 }
 
 function loginUser() {
-  const name  = document.getElementById('userNameInput').value.trim();
+  const name = document.getElementById('userNameInput').value.trim();
   const phone = document.getElementById('userPhoneInput').value.trim();
-  if (!name)             { _shake('userNameInput');  showToast('Please enter your name.','error'); return; }
-  if (phone.length < 10) { _shake('userPhoneInput'); showToast('Enter a valid 10-digit number.','error'); return; }
+  if (!name) { _shake('userNameInput'); showToast('Please enter your name.', 'error'); return; }
+  if (phone.length < 10) { _shake('userPhoneInput'); showToast('Enter a valid 10-digit number.', 'error'); return; }
   const btn = document.getElementById('userLoginBtn');
   btn.textContent = 'Signing in…'; btn.disabled = true;
-  setTimeout(() => { Auth.login({ role:'user', name, phone }); launchApp(); }, 700);
+  setTimeout(() => { Auth.login({ role: 'user', name, phone }); launchApp(); }, 700);
 }
 
 function logout() {
   Auth.logout();
   // Reset app visibility
   document.getElementById('appContainer').style.display = 'none';
-  document.getElementById('loginPage').style.display    = 'flex';
+  document.getElementById('loginPage').style.display = 'flex';
   resetRole();
   // Reset store form
   const sb = document.getElementById('storeLoginBtn'); if (sb) { sb.textContent = 'Login'; sb.disabled = false; }
-  const ub = document.getElementById('userLoginBtn');  if (ub) { ub.textContent = 'Continue'; ub.disabled = false; }
+  const ub = document.getElementById('userLoginBtn'); if (ub) { ub.textContent = 'Continue'; ub.disabled = false; }
   const pi = document.getElementById('storePinInput'); if (pi) pi.value = '';
   // Hide nav panels
   closeAlertsPanel();
-  showToast('Logged out successfully.','success');
+  showToast('Logged out successfully.', 'success');
 }
 
 function _shake(id) {
@@ -130,24 +130,24 @@ function _shake(id) {
 }
 
 function launchApp() {
-  document.getElementById('loginPage').style.display    = 'none';
+  document.getElementById('loginPage').style.display = 'none';
   document.getElementById('appContainer').style.display = 'flex';
   const s = Auth.session();
 
   // Profile strip
-  const initials = s.name.split(' ').map(w => w[0]).join('').substring(0,2).toUpperCase();
+  const initials = s.name.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
   document.getElementById('profileAvatar').textContent = initials;
-  document.getElementById('profileName').textContent   = s.name.split(' - ')[0];
-  document.getElementById('profileRole').textContent   = Auth.isStore() ? 'Pharmacist' : 'Patient';
+  document.getElementById('profileName').textContent = s.name.split(' - ')[0];
+  document.getElementById('profileRole').textContent = Auth.isStore() ? 'Pharmacist' : '';
 
   if (Auth.isStore()) {
     document.getElementById('storeNav').style.display = 'block';
-    document.getElementById('userNav').style.display  = 'none';
+    document.getElementById('userNav').style.display = 'none';
     document.querySelectorAll('.store-only-btn').forEach(b => b.style.display = 'flex');
     activateSection('dashboard');
     initDashboard();
   } else {
-    document.getElementById('userNav').style.display  = 'block';
+    document.getElementById('userNav').style.display = 'block';
     document.getElementById('storeNav').style.display = 'none';
     document.querySelectorAll('.store-only-btn').forEach(b => b.style.display = 'none');
     _setActive('user-dashboard');
@@ -192,28 +192,28 @@ document.addEventListener('click', e => {
 
 // ─── NAVIGATION ──────────────────────────────────────────────────
 const PAGE_META = {
-  'dashboard':         ['Dashboard',           'Smart Healthcare Supply & Secure Retail System'],
-  'user-dashboard':    ['My Dashboard',        'Your personal health portal'],
-  'health-alerts':     ['Health Alerts',       'Disease outbreaks and advisories near you'],
-  'purchase-history':  ['Purchase History',    'Your medicine purchases and savings'],
-  'disease-monitor':   ['Disease Monitor',     'Real-time outbreak tracking from hospital & NGO data'],
-  'demand-predict':    ['Demand Forecast',     'AI-powered medicine demand prediction'],
-  'suggestions':       ['AI Suggestions',      'Smart inventory recommendations'],
-  'inventory':         ['Inventory',           'Real-time stock for your pharmacy'],
-  'transfer-requests': ['Stock Transfers',     'Send or request stock between pharmacies'],
-  'redistribution':    ['Auto Redistribution', 'Optimize stock distribution across pharmacies'],
-  'generic-finder':    ['Medicine Search',       'Compare brand and generic medicines with live pricing'],
-  'analytics':         ['Analytics',           'Trends, metrics and actionable insights'],
+  'dashboard': ['Dashboard', 'Smart Healthcare Supply & Secure Retail System'],
+  'user-dashboard': ['My Dashboard', 'Your personal health portal'],
+  'health-alerts': ['Health Alerts', 'Disease outbreaks and advisories near you'],
+  'purchase-history': ['Purchase History', 'Your medicine purchases and savings'],
+  'disease-monitor': ['Disease Monitor', 'Real-time outbreak tracking from hospital & NGO data'],
+  'demand-predict': ['Demand Forecast', 'AI-powered medicine demand prediction'],
+  'suggestions': ['AI Suggestions', 'Smart inventory recommendations'],
+  'inventory': ['Inventory', 'Real-time stock for your pharmacy'],
+  'transfer-requests': ['Stock Transfers', 'Send or request stock between pharmacies'],
+  'redistribution': ['Auto Redistribution', 'Optimize stock distribution across pharmacies'],
+  'generic-finder': ['Medicine Search', 'Compare brand and generic medicines with live pricing'],
+  'analytics': ['Analytics', 'Trends, metrics and actionable insights'],
 };
 
-const STORE_ONLY = ['dashboard','disease-monitor','demand-predict','suggestions','inventory','transfer-requests','redistribution','analytics'];
+const STORE_ONLY = ['dashboard', 'disease-monitor', 'demand-predict', 'suggestions', 'inventory', 'transfer-requests', 'redistribution', 'analytics'];
 
 function activateSection(id) {
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   const el = document.getElementById('section-' + id);
   if (el) el.classList.add('active');
   const [title, sub] = PAGE_META[id] || [id, ''];
-  document.getElementById('pageTitle').textContent    = title;
+  document.getElementById('pageTitle').textContent = title;
   document.getElementById('pageSubtitle').textContent = sub;
 }
 
@@ -226,26 +226,26 @@ function _setActive(sectionId) {
 function navigate(sectionId, btn) {
   closeAlertsPanel();
   if (Auth.isUser() && STORE_ONLY.includes(sectionId)) {
-    showToast('This section is available for pharmacy staff only.','error'); return;
+    showToast('This section is available for pharmacy staff only.', 'error'); return;
   }
   _setActive(sectionId);
   activateSection(sectionId);
 
-  if (sectionId === 'disease-monitor')   initDiseaseCharts();
-  if (sectionId === 'inventory')         renderInventory();
-  if (sectionId === 'redistribution')    initRedistributionChart();
-  if (sectionId === 'analytics')         initAnalyticsCharts();
-  if (sectionId === 'generic-finder')    renderGenericTable();
+  if (sectionId === 'disease-monitor') initDiseaseCharts();
+  if (sectionId === 'inventory') renderInventory();
+  if (sectionId === 'redistribution') initRedistributionChart();
+  if (sectionId === 'analytics') initAnalyticsCharts();
+  if (sectionId === 'generic-finder') renderGenericTable();
   if (sectionId === 'transfer-requests') renderTransferRequests();
-  if (sectionId === 'suggestions')       renderSuggestions();
-  if (sectionId === 'user-dashboard')    initUserDashboard();
-  if (sectionId === 'health-alerts')     renderHealthAlerts();
-  if (sectionId === 'purchase-history')  renderPurchaseHistory();
+  if (sectionId === 'suggestions') renderSuggestions();
+  if (sectionId === 'user-dashboard') initUserDashboard();
+  if (sectionId === 'health-alerts') renderHealthAlerts();
+  if (sectionId === 'purchase-history') renderPurchaseHistory();
 }
 
 // ─── TOAST ───────────────────────────────────────────────────────
-function showToast(msg, type='success', dur=3500) {
-  const c  = document.getElementById('toastContainer');
+function showToast(msg, type = 'success', dur = 3500) {
+  const c = document.getElementById('toastContainer');
   const el = document.createElement('div');
   el.className = `toast ${type}`;
   el.textContent = msg;
@@ -257,9 +257,9 @@ function showToast(msg, type='success', dur=3500) {
 function animateCounter(el, target) {
   const dur = 1300, start = Date.now();
   const step = () => {
-    const p = Math.min((Date.now()-start)/dur, 1);
-    const e = 1 - Math.pow(1-p, 3);
-    el.textContent = Math.floor(e*target).toLocaleString('en-IN');
+    const p = Math.min((Date.now() - start) / dur, 1);
+    const e = 1 - Math.pow(1 - p, 3);
+    el.textContent = Math.floor(e * target).toLocaleString('en-IN');
     if (p < 1) requestAnimationFrame(step);
   };
   requestAnimationFrame(step);
@@ -270,12 +270,12 @@ function initCounters() {
 
 // ─── CHART PALETTE ───────────────────────────────────────────────
 const CC = {
-  purple:'rgba(108,99,255,1)', purpleF:'rgba(108,99,255,0.12)',
-  teal:  'rgba(0,212,170,1)',  tealF:  'rgba(0,212,170,0.12)',
+  purple: 'rgba(108,99,255,1)', purpleF: 'rgba(108,99,255,0.12)',
+  teal: 'rgba(0,212,170,1)', tealF: 'rgba(0,212,170,0.12)',
   amber: 'rgba(245,166,35,1)', amberF: 'rgba(245,166,35,0.12)',
-  red:   'rgba(255,82,82,1)',  redF:   'rgba(255,82,82,0.12)',
-  blue:  'rgba(64,169,255,1)', blueF:  'rgba(64,169,255,0.12)',
-  green: 'rgba(82,196,26,1)',  greenF: 'rgba(82,196,26,0.12)',
+  red: 'rgba(255,82,82,1)', redF: 'rgba(255,82,82,0.12)',
+  blue: 'rgba(64,169,255,1)', blueF: 'rgba(64,169,255,0.12)',
+  green: 'rgba(82,196,26,1)', greenF: 'rgba(82,196,26,0.12)',
 };
 function _gc(id) {
   const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
@@ -286,31 +286,21 @@ function destroyChart(id) { if (charts[id]) { charts[id].destroy(); delete chart
 // ─── DASHBOARD ───────────────────────────────────────────────────
 function initDashboard() {
   initCounters();
-  renderDashAlerts();
   renderDashLowStock();
   initDashTrendChart();
   initDashDonut();
 }
 
-function renderDashAlerts() {
-  const f = document.getElementById('dashAlertsFeed');
-  if (!f) return;
-  f.innerHTML = MOCK_DATA.alerts.map(a => `
-    <div class="alert-item ${a.type}">
-      <div class="alert-dot ${a.type}"></div>
-      <span class="alert-msg">${a.msg}</span>
-      <span class="alert-time">${a.time}</span>
-    </div>`).join('');
-}
+
 
 function renderDashLowStock() {
   const c = document.getElementById('dashLowStock');
   if (!c) return;
   const ph = MOCK_DATA.pharmacies.find(p => p.id === Auth.phId());
   if (!ph) { c.innerHTML = '<div style="color:var(--text-muted);font-size:13px;">No data.</div>'; return; }
-  const items = ph.inventory.map(i => ({ ...i, pct: (i.stock/i.threshold)*100 })).sort((a,b)=>a.pct-b.pct).slice(0,5);
+  const items = ph.inventory.map(i => ({ ...i, pct: (i.stock / i.threshold) * 100 })).sort((a, b) => a.pct - b.pct).slice(0, 5);
   c.innerHTML = items.map(it => {
-    const pct = Math.min(it.pct,100).toFixed(0);
+    const pct = Math.min(it.pct, 100).toFixed(0);
     const cls = it.pct < 30 ? 'red' : it.pct < 100 ? 'amber' : 'green';
     return `<div class="stock-row">
       <div class="stock-info">
@@ -328,14 +318,17 @@ function initDashTrendChart() {
   const d = MOCK_DATA.diseaseTrend;
   charts.dashTrend = new Chart(ctx, {
     type: 'line',
-    data: { labels: d.labels, datasets: [
-      { label:'Dengue',  data:d.datasets['Dengue'],  borderColor:CC.red,   backgroundColor:CC.redF,   tension:0.4, fill:true,  pointRadius:4, borderWidth:2 },
-      { label:'Flu',     data:d.datasets['Flu'],     borderColor:CC.amber, backgroundColor:CC.amberF, tension:0.4, fill:false, pointRadius:4, borderWidth:2 },
-      { label:'Malaria', data:d.datasets['Malaria'], borderColor:CC.teal,  backgroundColor:CC.tealF,  tension:0.4, fill:false, pointRadius:4, borderWidth:2 },
-    ]},
-    options:{ responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{ position:'bottom', labels:{ boxWidth:10, padding:14 } } },
-      scales:{ x:{ grid:{ color:_gc() } }, y:{ beginAtZero:true, grid:{ color:_gc() } } }
+    data: {
+      labels: d.labels, datasets: [
+        { label: 'Dengue', data: d.datasets['Dengue'], borderColor: CC.red, backgroundColor: CC.redF, tension: 0.4, fill: true, pointRadius: 4, borderWidth: 2 },
+        { label: 'Flu', data: d.datasets['Flu'], borderColor: CC.amber, backgroundColor: CC.amberF, tension: 0.4, fill: false, pointRadius: 4, borderWidth: 2 },
+        { label: 'Malaria', data: d.datasets['Malaria'], borderColor: CC.teal, backgroundColor: CC.tealF, tension: 0.4, fill: false, pointRadius: 4, borderWidth: 2 },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 14 } } },
+      scales: { x: { grid: { color: _gc() } }, y: { beginAtZero: true, grid: { color: _gc() } } }
     }
   });
 }
@@ -344,14 +337,18 @@ function initDashDonut() {
   destroyChart('dashDonut');
   const ctx = document.getElementById('demandDonutDash').getContext('2d');
   charts.dashDonut = new Chart(ctx, {
-    type:'doughnut',
-    data:{ labels:['Paracetamol','Azithromycin','ORS Sachets','Cetirizine','Omeprazole','Other'],
-      datasets:[{ data:[35,18,22,12,8,5],
-        backgroundColor:[CC.purple,CC.teal,CC.amber,CC.blue,CC.red,CC.green],
-        borderWidth:2, borderColor:'transparent' }]
+    type: 'doughnut',
+    data: {
+      labels: ['Paracetamol', 'Azithromycin', 'ORS Sachets', 'Cetirizine', 'Omeprazole', 'Other'],
+      datasets: [{
+        data: [35, 18, 22, 12, 8, 5],
+        backgroundColor: [CC.purple, CC.teal, CC.amber, CC.blue, CC.red, CC.green],
+        borderWidth: 2, borderColor: 'transparent'
+      }]
     },
-    options:{ responsive:true, maintainAspectRatio:false, cutout:'65%',
-      plugins:{ legend:{ position:'right', labels:{ boxWidth:10, padding:10, font:{ size:11 } } } }
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '65%',
+      plugins: { legend: { position: 'right', labels: { boxWidth: 10, padding: 10, font: { size: 11 } } } }
     }
   });
 }
@@ -366,7 +363,7 @@ function initUserDashboard() {
 
 function renderUserAlerts() {
   const c = document.getElementById('userAlertsFeed'); if (!c) return;
-  c.innerHTML = MOCK_DATA.userHealthAlerts.slice(0,3).map(a => `
+  c.innerHTML = MOCK_DATA.userHealthAlerts.slice(0, 3).map(a => `
     <div class="alert-item ${a.type}" style="margin-bottom:10px;">
       <div class="alert-dot ${a.type}"></div>
       <div style="flex:1;">
@@ -391,11 +388,11 @@ function renderHealthAlerts() {
     </div>`).join('');
 
   const outbreaks = [
-    { disease:'Dengue',       cases:145, severity:'HIGH',   advice:'Use mosquito repellent, avoid stagnant water' },
-    { disease:'Flu/Influenza',cases:102, severity:'MEDIUM', advice:'Wash hands frequently, consider vaccination' },
-    { disease:'Malaria',      cases:28,  severity:'MEDIUM', advice:'Use mosquito nets at night' },
+    { disease: 'Dengue', cases: 145, severity: 'HIGH', advice: 'Use mosquito repellent, avoid stagnant water' },
+    { disease: 'Flu/Influenza', cases: 102, severity: 'MEDIUM', advice: 'Wash hands frequently, consider vaccination' },
+    { disease: 'Malaria', cases: 28, severity: 'MEDIUM', advice: 'Use mosquito nets at night' },
   ];
-  const cls = { HIGH:'badge-red', MEDIUM:'badge-amber', LOW:'badge-blue' };
+  const cls = { HIGH: 'badge-red', MEDIUM: 'badge-amber', LOW: 'badge-blue' };
   document.getElementById('userOutbreakList').innerHTML = outbreaks.map(o => `
     <div class="outbreak-row">
       <div class="outbreak-indicator ${o.severity.toLowerCase()}"></div>
@@ -416,7 +413,7 @@ function renderPurchaseHistory() {
       <td>${p.brand}</td>
       <td><span class="badge ${p.generic ? 'badge-teal' : 'badge-purple'}">${p.generic ? 'Generic' : 'Brand'}</span></td>
       <td>₹${p.price}</td>
-      <td style="color:var(--accent-teal);font-weight:600;">${p.saved > 0 ? '₹'+p.saved : '—'}</td>
+      <td style="color:var(--accent-teal);font-weight:600;">${p.saved > 0 ? '₹' + p.saved : '—'}</td>
       <td style="color:var(--text-muted);font-size:12px;">${p.pharmacy}</td>
     </tr>`).join('');
 }
@@ -424,15 +421,15 @@ function renderPurchaseHistory() {
 // ─── DISEASE MONITOR ─────────────────────────────────────────────
 function renderOutbreakCards() {
   const outbreaks = [
-    { disease:'Dengue',        cases:145, prev:110, severity:'HIGH'   },
-    { disease:'Flu/Influenza', cases:102, prev:88,  severity:'MEDIUM' },
-    { disease:'Malaria',       cases:28,  prev:20,  severity:'MEDIUM' },
-    { disease:'Typhoid',       cases:12,  prev:10,  severity:'LOW'    },
+    { disease: 'Dengue', cases: 145, prev: 110, severity: 'HIGH' },
+    { disease: 'Flu/Influenza', cases: 102, prev: 88, severity: 'MEDIUM' },
+    { disease: 'Malaria', cases: 28, prev: 20, severity: 'MEDIUM' },
+    { disease: 'Typhoid', cases: 12, prev: 10, severity: 'LOW' },
   ];
-  const clsMap = { HIGH:'badge-red', MEDIUM:'badge-amber', LOW:'badge-blue' };
+  const clsMap = { HIGH: 'badge-red', MEDIUM: 'badge-amber', LOW: 'badge-blue' };
   document.getElementById('outbreakCards').innerHTML = outbreaks.map(o => {
-    const g = (((o.cases-o.prev)/o.prev)*100).toFixed(0);
-    const barCls = o.severity==='HIGH'?'red' : o.severity==='MEDIUM'?'amber':'green';
+    const g = (((o.cases - o.prev) / o.prev) * 100).toFixed(0);
+    const barCls = o.severity === 'HIGH' ? 'red' : o.severity === 'MEDIUM' ? 'amber' : 'green';
     return `<div class="outbreak-row">
       <div class="outbreak-indicator ${o.severity.toLowerCase()}"></div>
       <div style="flex:1;">
@@ -442,7 +439,7 @@ function renderOutbreakCards() {
           <span style="font-size:12px;color:var(--accent-red);margin-left:auto;">+${g}%</span>
         </div>
         <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;">${o.cases} active cases today</div>
-        <div class="progress-bar"><div class="progress-fill ${barCls}" style="width:${Math.min(o.cases/1.5,100)}%"></div></div>
+        <div class="progress-bar"><div class="progress-fill ${barCls}" style="width:${Math.min(o.cases / 1.5, 100)}%"></div></div>
       </div>
     </div>`;
   }).join('');
@@ -454,66 +451,63 @@ function initDiseaseCharts() {
   const ctx = document.getElementById('diseaseLineChart').getContext('2d');
   const d = MOCK_DATA.diseaseTrend;
   charts.diseaseLine = new Chart(ctx, {
-    type:'line',
-    data:{ labels:d.labels, datasets:[
-      { label:'Dengue',  data:d.datasets['Dengue'],  borderColor:CC.red,   tension:0.4, fill:false, pointRadius:4, borderWidth:2 },
-      { label:'Flu',     data:d.datasets['Flu'],     borderColor:CC.amber, tension:0.4, fill:false, pointRadius:4, borderWidth:2 },
-      { label:'Malaria', data:d.datasets['Malaria'], borderColor:CC.teal,  tension:0.4, fill:false, pointRadius:4, borderWidth:2 },
-      { label:'Typhoid', data:d.datasets['Typhoid'], borderColor:CC.blue,  tension:0.4, fill:false, pointRadius:4, borderWidth:2 },
-    ]},
-    options:{ responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{ position:'bottom', labels:{ boxWidth:10, padding:14 } } },
-      scales:{ x:{ grid:{ color:_gc() } }, y:{ beginAtZero:true, grid:{ color:_gc() } } }
+    type: 'line',
+    data: {
+      labels: d.labels, datasets: [
+        { label: 'Dengue', data: d.datasets['Dengue'], borderColor: CC.red, tension: 0.4, fill: false, pointRadius: 4, borderWidth: 2 },
+        { label: 'Flu', data: d.datasets['Flu'], borderColor: CC.amber, tension: 0.4, fill: false, pointRadius: 4, borderWidth: 2 },
+        { label: 'Malaria', data: d.datasets['Malaria'], borderColor: CC.teal, tension: 0.4, fill: false, pointRadius: 4, borderWidth: 2 },
+        { label: 'Typhoid', data: d.datasets['Typhoid'], borderColor: CC.blue, tension: 0.4, fill: false, pointRadius: 4, borderWidth: 2 },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 14 } } },
+      scales: { x: { grid: { color: _gc() } }, y: { beginAtZero: true, grid: { color: _gc() } } }
     }
   });
 }
 
 function logDiseaseReport() {
   const disease = document.getElementById('diseaseSelect').value;
-  const cases   = document.getElementById('casesInput').value;
-  if (!disease || !cases) { showToast('Please fill disease and case count.','error'); return; }
-  showToast(`Report logged: ${disease} — ${cases} cases.`,'success', 4000);
-  setTimeout(() => showToast(`Alert dispatched to all pharmacies.`,'warning', 4000), 2000);
+  const cases = document.getElementById('casesInput').value;
+  if (!disease || !cases) { showToast('Please fill disease and case count.', 'error'); return; }
+  showToast(`Report logged: ${disease} — ${cases} cases.`, 'success', 4000);
+  setTimeout(() => showToast(`Alert dispatched to all pharmacies.`, 'warning', 4000), 2000);
   setTimeout(() => { document.getElementById('forecastDiseaseSelect').value = disease; document.getElementById('forecastCases').value = cases; navigate('demand-predict', document.querySelector('[data-section="demand-predict"]')); runDemandForecast(); }, 3000);
-}
-
-function addDiseaseSample() {
-  document.getElementById('diseaseSelect').value = 'Dengue';
-  document.getElementById('casesInput').value    = 58;
-  showToast('Sample data filled. Click Submit to process.','success');
 }
 
 // ─── DEMAND FORECAST ─────────────────────────────────────────────
 function runDemandForecast() {
   const disease = document.getElementById('forecastDiseaseSelect').value;
-  const cases   = parseInt(document.getElementById('forecastCases').value) || 100;
-  const growth  = parseFloat(document.getElementById('forecastGrowth').value) || 32;
-  const win     = parseInt(document.getElementById('forecastWindow').value) || 7;
-  if (!disease) { showToast('Please select a disease.','error'); return; }
+  const cases = parseInt(document.getElementById('forecastCases').value) || 100;
+  const growth = parseFloat(document.getElementById('forecastGrowth').value) || 32;
+  const win = parseInt(document.getElementById('forecastWindow').value) || 7;
+  if (!disease) { showToast('Please select a disease.', 'error'); return; }
   const dd = MOCK_DATA.diseaseDemandMap[disease]; if (!dd) return;
-  const predicted = Math.floor(cases * Math.pow(1 + growth/100, win));
+  const predicted = Math.floor(cases * Math.pow(1 + growth / 100, win));
   const labels = [], vals = [];
-  for (let i=1; i<=win; i++) { labels.push(`Day ${i}`); vals.push(Math.floor(cases * Math.pow(1+growth/100, i))); }
+  for (let i = 1; i <= win; i++) { labels.push(`Day ${i}`); vals.push(Math.floor(cases * Math.pow(1 + growth / 100, i))); }
   document.getElementById('forecastDiseaseTitle').textContent = `${disease} Outbreak`;
   document.getElementById('forecastSummary').textContent = `${predicted.toLocaleString('en-IN')} predicted cases over ${win} days`;
-  const risk  = predicted > 300 ? 'HIGH' : predicted > 150 ? 'MEDIUM' : 'LOW';
+  const risk = predicted > 300 ? 'HIGH' : predicted > 150 ? 'MEDIUM' : 'LOW';
   const badge = document.getElementById('crisisBadge');
-  badge.textContent = risk+' RISK'; badge.className = `crisis-badge ${risk==='HIGH'?'high':'medium'}`;
+  badge.textContent = risk + ' RISK'; badge.className = `crisis-badge ${risk === 'HIGH' ? 'high' : 'medium'}`;
   destroyChart('forecastBar');
   const ctx = document.getElementById('forecastBarChart').getContext('2d');
   charts.forecastBar = new Chart(ctx, {
-    type:'bar',
-    data:{ labels, datasets:[{ label:'Predicted Cases', data:vals, backgroundColor:vals.map(v=>v>300?CC.red:v>150?CC.amber:CC.teal), borderRadius:5, borderSkipped:false }] },
-    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } }, scales:{ x:{ grid:{ display:false } }, y:{ beginAtZero:true, grid:{ color:_gc() } } } }
+    type: 'bar',
+    data: { labels, datasets: [{ label: 'Predicted Cases', data: vals, backgroundColor: vals.map(v => v > 300 ? CC.red : v > 150 ? CC.amber : CC.teal), borderRadius: 5, borderSkipped: false }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false } }, y: { beginAtZero: true, grid: { color: _gc() } } } }
   });
   const base = Math.ceil(predicted * dd.demandMultiplier);
-  document.getElementById('predictionItems').innerHTML = dd.medicines.map((m,i) => {
-    const u = Math.ceil(base*(1-i*0.15));
+  document.getElementById('predictionItems').innerHTML = dd.medicines.map((m, i) => {
+    const u = Math.ceil(base * (1 - i * 0.15));
     return `<div class="prediction-item"><div class="prediction-info"><div class="prediction-name">${m}</div><div class="prediction-detail">Required across all pharmacies · ${win}-day window</div></div><div class="prediction-units"><div class="units">${u.toLocaleString('en-IN')}</div><div class="units-label">units</div></div></div>`;
   }).join('');
   document.getElementById('predictionOutput').classList.add('show');
   document.getElementById('forecastPlaceholder').style.display = 'none';
-  showToast(`Forecast complete for ${disease}.`,'success');
+  showToast(`Forecast complete for ${disease}.`, 'success');
 }
 
 // ─── INVENTORY ───────────────────────────────────────────────────
@@ -521,26 +515,26 @@ let _editingRow = null; // { phId, medicine }
 
 function renderInventory() {
   const phId = Auth.phId();
-  const ph   = MOCK_DATA.pharmacies.find(p => p.id === phId);
+  const ph = MOCK_DATA.pharmacies.find(p => p.id === phId);
   if (!ph) { document.getElementById('inventoryTables').innerHTML = '<div class="card flex-center" style="height:200px;color:var(--text-muted);">No inventory data available.</div>'; return; }
 
   const sub = document.getElementById('inventorySubtitle');
   if (sub) sub.textContent = `Stock levels for ${ph.name} · ${ph.location}`;
 
-  let critical=0, low=0, total=0;
-  ph.inventory.forEach(it => { total += it.stock; const p = it.stock/it.threshold; if(p<0.5) critical++; else if(p<1) low++; });
+  let critical = 0, low = 0, total = 0;
+  ph.inventory.forEach(it => { total += it.stock; const p = it.stock / it.threshold; if (p < 0.5) critical++; else if (p < 1) low++; });
 
   document.getElementById('invSummaryCards').innerHTML = `
     <div class="stat-card teal"><div class="stat-top"><span class="stat-sup">Total</span></div><div class="stat-value">${total.toLocaleString('en-IN')}</div><div class="stat-label">Units in Stock</div></div>
     <div class="stat-card red"><div class="stat-top"><span class="stat-sup">Urgent</span></div><div class="stat-value">${critical}</div><div class="stat-label">Critical Items</div></div>
     <div class="stat-card amber"><div class="stat-top"><span class="stat-sup">Warning</span></div><div class="stat-value">${low}</div><div class="stat-label">Low Stock</div></div>
-    <div class="stat-card green"><div class="stat-top"><span class="stat-sup">Healthy</span></div><div class="stat-value">${ph.inventory.length-critical-low}</div><div class="stat-label">Items OK</div></div>`;
+    <div class="stat-card green"><div class="stat-top"><span class="stat-sup">Healthy</span></div><div class="stat-value">${ph.inventory.length - critical - low}</div><div class="stat-label">Items OK</div></div>`;
 
   const rows = ph.inventory.map(it => {
-    const pct    = (it.stock/it.threshold*100).toFixed(0);
-    const stCls  = pct < 30 ? 'badge-red' : pct < 100 ? 'badge-amber' : 'badge-green';
-    const stLbl  = pct < 30 ? 'Critical'  : pct < 100 ? 'Low'         : 'OK';
-    const barCls = pct < 30 ? 'red'       : pct < 100 ? 'amber'        : 'green';
+    const pct = (it.stock / it.threshold * 100).toFixed(0);
+    const stCls = pct < 30 ? 'badge-red' : pct < 100 ? 'badge-amber' : 'badge-green';
+    const stLbl = pct < 30 ? 'Critical' : pct < 100 ? 'Low' : 'OK';
+    const barCls = pct < 30 ? 'red' : pct < 100 ? 'amber' : 'green';
     const safeName = it.medicine.replace(/[^a-z0-9]/gi, '_');
     return `<tr id="invRow_${safeName}">
       <td><strong>${it.medicine}</strong></td>
@@ -548,7 +542,7 @@ function renderInventory() {
       <td>${it.threshold}</td>
       <td><span class="badge ${stCls}">${stLbl}</span></td>
       <td style="width:140px;">
-        <div class="progress-bar"><div class="progress-fill ${barCls}" style="width:${Math.min(pct,100)}%"></div></div>
+        <div class="progress-bar"><div class="progress-fill ${barCls}" style="width:${Math.min(pct, 100)}%"></div></div>
         <span style="font-size:11px;color:var(--text-muted);">${pct}%</span>
       </td>
       <td>
@@ -575,43 +569,43 @@ function editStockRow(phId, medicine) {
   // Cancel any previous edit
   if (_editingRow) cancelStockEdit(false);
   _editingRow = { phId, medicine };
-  const safeName = medicine.replace(/[^a-z0-9]/gi,'_');
-  const ph  = MOCK_DATA.pharmacies.find(p => p.id === phId);
+  const safeName = medicine.replace(/[^a-z0-9]/gi, '_');
+  const ph = MOCK_DATA.pharmacies.find(p => p.id === phId);
   const item = ph?.inventory.find(i => i.medicine === medicine);
   if (!item) return;
 
   // Replace stock cell with input
-  document.getElementById('invStockCell_'+safeName).innerHTML =
+  document.getElementById('invStockCell_' + safeName).innerHTML =
     `<input class="form-input inv-edit-input" id="invEditInput_${safeName}" type="number" value="${item.stock}" min="0"/>`;
 
   // Replace action buttons
-  document.getElementById('invActions_'+safeName).innerHTML = `
+  document.getElementById('invActions_' + safeName).innerHTML = `
     <button class="btn btn-primary btn-sm" onclick="saveStockRow('${phId}','${medicine}')">Save</button>
     <button class="btn btn-outline btn-sm" onclick="cancelStockEdit(true)">Cancel</button>`;
 }
 
 function saveStockRow(phId, medicine) {
-  const safeName = medicine.replace(/[^a-z0-9]/gi,'_');
-  const input = document.getElementById('invEditInput_'+safeName);
+  const safeName = medicine.replace(/[^a-z0-9]/gi, '_');
+  const input = document.getElementById('invEditInput_' + safeName);
   const newQty = parseInt(input?.value);
-  if (isNaN(newQty) || newQty < 0) { showToast('Please enter a valid quantity.','error'); return; }
+  if (isNaN(newQty) || newQty < 0) { showToast('Please enter a valid quantity.', 'error'); return; }
 
-  const ph   = MOCK_DATA.pharmacies.find(p => p.id === phId);
+  const ph = MOCK_DATA.pharmacies.find(p => p.id === phId);
   const item = ph?.inventory.find(i => i.medicine === medicine);
   if (item) item.stock = newQty;
 
   _editingRow = null;
   renderInventory();
   renderDashLowStock();
-  showToast(`Stock updated: ${medicine} → ${newQty} units.`,'success');
+  showToast(`Stock updated: ${medicine} → ${newQty} units.`, 'success');
 }
 
-function cancelStockEdit(reRender=true) {
+function cancelStockEdit(reRender = true) {
   _editingRow = null;
   if (reRender) renderInventory();
 }
 
-function showRestockSuggestions() { showToast('Restock plan generated and sent to procurement.','success',4000); }
+function showRestockSuggestions() { showToast('Restock plan generated and sent to procurement.', 'success', 4000); }
 
 // ─── AI SUGGESTIONS ──────────────────────────────────────────────
 function generateSuggestions(phId) {
@@ -619,24 +613,24 @@ function generateSuggestions(phId) {
   if (!ph) return [];
   const trends = MOCK_DATA.purchaseTrends?.[phId];
   const outbreaks = [
-    { disease:'Dengue',        growth:32, medicines:MOCK_DATA.diseaseDemandMap['Dengue'].medicines },
-    { disease:'Flu/Influenza', growth:16, medicines:MOCK_DATA.diseaseDemandMap['Flu/Influenza'].medicines },
-    { disease:'Malaria',       growth:9,  medicines:MOCK_DATA.diseaseDemandMap['Malaria'].medicines },
+    { disease: 'Dengue', growth: 32, medicines: MOCK_DATA.diseaseDemandMap['Dengue'].medicines },
+    { disease: 'Flu/Influenza', growth: 16, medicines: MOCK_DATA.diseaseDemandMap['Flu/Influenza'].medicines },
+    { disease: 'Malaria', growth: 9, medicines: MOCK_DATA.diseaseDemandMap['Malaria'].medicines },
   ];
   return ph.inventory.map(item => {
-    const stockPct = (item.stock/item.threshold)*100;
+    const stockPct = (item.stock / item.threshold) * 100;
     let velocityScore = 0;
     if (trends?.weeklyData?.[item.medicine]) {
       const d = trends.weeklyData[item.medicine];
-      const recent = (d[5]+d[6])/2;
-      const base   = (d[0]+d[1]+d[2]+d[3]+d[4])/5;
-      velocityScore = base > 0 ? ((recent-base)/base)*100 : 0;
+      const recent = (d[5] + d[6]) / 2;
+      const base = (d[0] + d[1] + d[2] + d[3] + d[4]) / 5;
+      velocityScore = base > 0 ? ((recent - base) / base) * 100 : 0;
     }
     let diseaseScore = 0, related = [];
     outbreaks.forEach(ob => { if (ob.medicines.includes(item.medicine)) { diseaseScore += ob.growth; related.push(`${ob.disease} (+${ob.growth}%)`); } });
     const stockUrgency = stockPct < 30 ? 60 : stockPct < 70 ? 30 : stockPct < 100 ? 15 : 0;
-    const score = Math.min(Math.round(stockUrgency + Math.max(0,velocityScore)*0.4 + diseaseScore*0.3), 100);
-    const recQty = Math.max(item.threshold*2-item.stock, Math.round(item.threshold*(1+velocityScore/100)));
+    const score = Math.min(Math.round(stockUrgency + Math.max(0, velocityScore) * 0.4 + diseaseScore * 0.3), 100);
+    const recQty = Math.max(item.threshold * 2 - item.stock, Math.round(item.threshold * (1 + velocityScore / 100)));
     const reason = (() => {
       const p = [];
       if (stockPct < 30) p.push(`Stock critically low (${Math.round(stockPct)}%)`);
@@ -645,22 +639,22 @@ function generateSuggestions(phId) {
       if (related.length) p.push(`Linked: ${related.join(', ')}`);
       return p.join(' · ') || 'Routine restock recommended';
     })();
-    return { medicine:item.medicine, stock:item.stock, threshold:item.threshold, stockPct:Math.round(stockPct), velocityChange:Math.round(velocityScore), related, urgencyScore:score, recommendedQty:Math.max(recQty,0), reason };
-  }).filter(s => s.urgencyScore > 5).sort((a,b) => b.urgencyScore - a.urgencyScore);
+    return { medicine: item.medicine, stock: item.stock, threshold: item.threshold, stockPct: Math.round(stockPct), velocityChange: Math.round(velocityScore), related, urgencyScore: score, recommendedQty: Math.max(recQty, 0), reason };
+  }).filter(s => s.urgencyScore > 5).sort((a, b) => b.urgencyScore - a.urgencyScore);
 }
 
 function renderSuggestions() {
   const phId = Auth.phId() || 'PH001';
-  const sug  = generateSuggestions(phId);
-  const c    = document.getElementById('suggestionsList');
+  const sug = generateSuggestions(phId);
+  const c = document.getElementById('suggestionsList');
   if (!sug.length) { c.innerHTML = '<div class="card flex-center" style="height:160px;color:var(--text-muted);">All stock levels healthy.</div>'; return; }
-  c.innerHTML = sug.map((s,i) => {
-    const cls   = s.urgencyScore>=70?'critical':s.urgencyScore>=40?'medium':'low';
-    const label = s.urgencyScore>=70?'Critical':s.urgencyScore>=40?'Medium':'Low';
-    const barCls = s.stockPct<30?'red':s.stockPct<100?'amber':'green';
+  c.innerHTML = sug.map((s, i) => {
+    const cls = s.urgencyScore >= 70 ? 'critical' : s.urgencyScore >= 40 ? 'medium' : 'low';
+    const label = s.urgencyScore >= 70 ? 'Critical' : s.urgencyScore >= 40 ? 'Medium' : 'Low';
+    const barCls = s.stockPct < 30 ? 'red' : s.stockPct < 100 ? 'amber' : 'green';
     return `<div class="suggestion-card ${cls}">
       <div class="suggestion-header">
-        <div class="suggestion-rank">${i+1}</div>
+        <div class="suggestion-rank">${i + 1}</div>
         <div class="suggestion-title"><div class="suggestion-medicine">${s.medicine}</div><div class="suggestion-reason">${s.reason}</div></div>
         <div style="text-align:right;flex-shrink:0;"><span class="suggestion-urgency-badge ${cls}">${label}</span><div class="suggestion-score">Score: ${s.urgencyScore}/100</div></div>
       </div>
@@ -668,12 +662,12 @@ function renderSuggestions() {
         <div class="suggestion-metrics">
           <div class="metric-item"><div class="metric-label">Current</div><div class="metric-val">${s.stock}</div></div>
           <div class="metric-item"><div class="metric-label">Threshold</div><div class="metric-val">${s.threshold}</div></div>
-          <div class="metric-item"><div class="metric-label">Velocity</div><div class="metric-val" style="color:${s.velocityChange>0?'var(--accent-red)':'var(--accent-teal)'}">${s.velocityChange>0?'+':''}${s.velocityChange}%</div></div>
+          <div class="metric-item"><div class="metric-label">Velocity</div><div class="metric-val" style="color:${s.velocityChange > 0 ? 'var(--accent-red)' : 'var(--accent-teal)'}">${s.velocityChange > 0 ? '+' : ''}${s.velocityChange}%</div></div>
           <div class="metric-item"><div class="metric-label">Order Qty</div><div class="metric-val" style="color:var(--accent-amber);font-weight:700;">${s.recommendedQty}</div></div>
         </div>
         <div style="margin:12px 0 14px;">
           <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);margin-bottom:5px;"><span>Stock Health</span><span>${s.stockPct}%</span></div>
-          <div class="progress-bar"><div class="progress-fill ${barCls}" style="width:${Math.min(s.stockPct,100)}%"></div></div>
+          <div class="progress-bar"><div class="progress-fill ${barCls}" style="width:${Math.min(s.stockPct, 100)}%"></div></div>
         </div>
         <div style="display:flex;gap:10px;">
           <button class="btn btn-primary btn-sm" onclick="orderNow(this,'${s.medicine}',${s.recommendedQty})">Order ${s.recommendedQty} Units</button>
@@ -687,41 +681,43 @@ function renderSuggestions() {
 
 function orderNow(btn, med, qty) {
   btn.textContent = 'Ordered'; btn.disabled = true;
-  showToast(`Order placed: ${qty} units of ${med}.`,'success',4000);
+  showToast(`Order placed: ${qty} units of ${med}.`, 'success', 4000);
 }
-function refreshSuggestions() { showToast('Refreshing…','success'); setTimeout(() => { renderSuggestions(); showToast('Suggestions updated.','success'); }, 1200); }
+function refreshSuggestions() { showToast('Refreshing…', 'success'); setTimeout(() => { renderSuggestions(); showToast('Suggestions updated.', 'success'); }, 1200); }
 
 function renderPurchaseTrendChart(phId) {
   destroyChart('purchaseTrend');
   const trends = MOCK_DATA.purchaseTrends?.[phId]; if (!trends) return;
   const ctx = document.getElementById('purchaseTrendChart').getContext('2d');
-  const meds = ['Paracetamol','ORS Sachets','Cetirizine'];
+  const meds = ['Paracetamol', 'ORS Sachets', 'Cetirizine'];
   charts.purchaseTrend = new Chart(ctx, {
-    type:'line',
-    data:{ labels:trends.labels, datasets:meds.map((m,i)=>({
-      label:m, data:trends.weeklyData[m]||[], borderColor:[CC.red,CC.teal,CC.amber][i], backgroundColor:[CC.redF,CC.tealF,CC.amberF][i], tension:0.4, fill:i===0, pointRadius:3, borderWidth:2
-    })) },
-    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom', labels:{ boxWidth:10, padding:10, font:{ size:11 } } } }, scales:{ x:{ grid:{ color:_gc() } }, y:{ beginAtZero:true, grid:{ color:_gc() } } } }
+    type: 'line',
+    data: {
+      labels: trends.labels, datasets: meds.map((m, i) => ({
+        label: m, data: trends.weeklyData[m] || [], borderColor: [CC.red, CC.teal, CC.amber][i], backgroundColor: [CC.redF, CC.tealF, CC.amberF][i], tension: 0.4, fill: i === 0, pointRadius: 3, borderWidth: 2
+      }))
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 10, font: { size: 11 } } } }, scales: { x: { grid: { color: _gc() } }, y: { beginAtZero: true, grid: { color: _gc() } } } }
   });
 }
 
 // ─── TRANSFER REQUESTS ───────────────────────────────────────────
 let _transferFilter = 'all';
-let _transferMode   = 'send'; // 'send' | 'request'
+let _transferMode = 'send'; // 'send' | 'request'
 
 function setTransferMode(mode, btn) {
   _transferMode = mode;
   document.querySelectorAll('.mode-tab').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
   const phId = Auth.phId();
-  const ph   = MOCK_DATA.pharmacies.find(p => p.id === phId);
+  const ph = MOCK_DATA.pharmacies.find(p => p.id === phId);
   const otherPhs = MOCK_DATA.pharmacies.filter(p => p.id !== phId);
 
   const hintEl = document.getElementById('transferModeHint');
   const fromSel = document.getElementById('transferFrom');
-  const toSel   = document.getElementById('transferTo');
+  const toSel = document.getElementById('transferTo');
   const lFrom = document.getElementById('labelFrom');
-  const lTo   = document.getElementById('labelTo');
+  const lTo = document.getElementById('labelTo');
 
   // Re-build the selects based on mode
   const allOpts = MOCK_DATA.pharmacies.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
@@ -730,21 +726,21 @@ function setTransferMode(mode, btn) {
     hintEl.textContent = 'Sending surplus stock from your store to another pharmacy that needs it.';
     // From = my store (locked), To = others
     fromSel.innerHTML = `<option value="${phId}">${ph?.name || phId}</option>`;
-    fromSel.disabled  = true;
-    toSel.innerHTML   = `<option value="">Select destination...</option>${otherPhs.map(p=>`<option value="${p.id}">${p.name}</option>`).join('')}`;
-    toSel.disabled    = false;
+    fromSel.disabled = true;
+    toSel.innerHTML = `<option value="">Select destination...</option>${otherPhs.map(p => `<option value="${p.id}">${p.name}</option>`).join('')}`;
+    toSel.disabled = false;
     lFrom.textContent = 'From (Your Store)';
-    lTo.textContent   = 'To Pharmacy (Receiving)';
+    lTo.textContent = 'To Pharmacy (Receiving)';
     fromSel.value = phId;
   } else {
     hintEl.textContent = 'Requesting stock from another pharmacy that has surplus. They will need to approve.';
     // From = other pharmacies, To = my store (locked)
-    fromSel.innerHTML = `<option value="">Select surplus store...</option>${otherPhs.map(p=>`<option value="${p.id}">${p.name}</option>`).join('')}`;
-    fromSel.disabled  = false;
-    toSel.innerHTML   = `<option value="${phId}">${ph?.name || phId}</option>`;
-    toSel.disabled    = true;
+    fromSel.innerHTML = `<option value="">Select surplus store...</option>${otherPhs.map(p => `<option value="${p.id}">${p.name}</option>`).join('')}`;
+    fromSel.disabled = false;
+    toSel.innerHTML = `<option value="${phId}">${ph?.name || phId}</option>`;
+    toSel.disabled = true;
     lFrom.textContent = 'Request From (Surplus Store)';
-    lTo.textContent   = 'Your Store (Recipient)';
+    lTo.textContent = 'Your Store (Recipient)';
     toSel.value = phId;
   }
 }
@@ -752,7 +748,7 @@ function setTransferMode(mode, btn) {
 function openNewTransferModal() {
   const form = document.getElementById('newTransferForm');
   form.style.display = 'block';
-  form.scrollIntoView({ behavior:'smooth' });
+  form.scrollIntoView({ behavior: 'smooth' });
   setTransferMode('send', document.getElementById('modeSend'));
 }
 
@@ -761,31 +757,31 @@ function closeNewTransferModal() {
 }
 
 function submitTransferRequest() {
-  const from     = document.getElementById('transferFrom').value;
-  const to       = document.getElementById('transferTo').value;
+  const from = document.getElementById('transferFrom').value;
+  const to = document.getElementById('transferTo').value;
   const medicine = document.getElementById('transferMedicine').value;
-  const qty      = parseInt(document.getElementById('transferQty').value);
-  const urgency  = document.getElementById('transferUrgency').value;
-  const reason   = document.getElementById('transferReason').value;
+  const qty = parseInt(document.getElementById('transferQty').value);
+  const urgency = document.getElementById('transferUrgency').value;
+  const reason = document.getElementById('transferReason').value;
 
-  if (!from || !to)      { showToast('Please select both pharmacies.','error'); return; }
-  if (from === to)       { showToast('Source and destination cannot be the same.','error'); return; }
-  if (!medicine)         { showToast('Please select a medicine.','error'); return; }
-  if (!qty || qty <= 0)  { showToast('Please enter a valid quantity.','error'); return; }
+  if (!from || !to) { showToast('Please select both pharmacies.', 'error'); return; }
+  if (from === to) { showToast('Source and destination cannot be the same.', 'error'); return; }
+  if (!medicine) { showToast('Please select a medicine.', 'error'); return; }
+  if (!qty || qty <= 0) { showToast('Please enter a valid quantity.', 'error'); return; }
 
-  const fromPh = MOCK_DATA.pharmacies.find(p=>p.id===from);
-  const toPh   = MOCK_DATA.pharmacies.find(p=>p.id===to);
+  const fromPh = MOCK_DATA.pharmacies.find(p => p.id === from);
+  const toPh = MOCK_DATA.pharmacies.find(p => p.id === to);
   const typeLabel = _transferMode === 'request' ? 'Stock Request' : 'Transfer';
 
   MOCK_DATA.transferRequests.unshift({
-    id: 'TR'+String(MOCK_DATA.transferRequests.length+1).padStart(3,'0'),
+    id: 'TR' + String(MOCK_DATA.transferRequests.length + 1).padStart(3, '0'),
     type: _transferMode,
-    fromPharmacy:from, fromName:fromPh?.name||from,
-    toPharmacy:to,     toName:toPh?.name||to,
-    medicine, quantity:qty, urgency,
-    status:'pending',
+    fromPharmacy: from, fromName: fromPh?.name || from,
+    toPharmacy: to, toName: toPh?.name || to,
+    medicine, quantity: qty, urgency,
+    status: 'pending',
     reason: reason || `${typeLabel} by ${Auth.session()?.name}`,
-    requestedBy: Auth.session()?.name||'Unknown',
+    requestedBy: Auth.session()?.name || 'Unknown',
     requestedAt: new Date().toISOString(),
   });
 
@@ -796,7 +792,7 @@ function submitTransferRequest() {
   const msg = _transferMode === 'request'
     ? `Stock request sent: ${qty} units of ${medicine} from ${fromPh?.name}.`
     : `Transfer submitted: ${qty} units of ${medicine} to ${toPh?.name}.`;
-  showToast(msg,'success',4000);
+  showToast(msg, 'success', 4000);
 }
 
 function filterTransfers(f, btn) {
@@ -808,9 +804,9 @@ function filterTransfers(f, btn) {
 
 function renderTransferRequests() {
   const all = MOCK_DATA.transferRequests;
-  const pending  = all.filter(r=>r.status==='pending').length;
-  const approved = all.filter(r=>r.status==='approved').length;
-  const rejected = all.filter(r=>r.status==='rejected').length;
+  const pending = all.filter(r => r.status === 'pending').length;
+  const approved = all.filter(r => r.status === 'approved').length;
+  const rejected = all.filter(r => r.status === 'rejected').length;
 
   document.getElementById('transferStats').innerHTML = `
     <div class="stat-card amber"><div class="stat-top"><span class="stat-sup">Pending</span></div><div class="stat-value">${pending}</div><div class="stat-label">Awaiting Action</div></div>
@@ -818,17 +814,17 @@ function renderTransferRequests() {
     <div class="stat-card red"><div class="stat-top"><span class="stat-sup">Declined</span></div><div class="stat-value">${rejected}</div><div class="stat-label">Rejected</div></div>
     <div class="stat-card blue"><div class="stat-top"><span class="stat-sup">All</span></div><div class="stat-value">${all.length}</div><div class="stat-label">Total</div></div>`;
 
-  const filtered = _transferFilter==='all' ? all : all.filter(r=>r.status===_transferFilter);
+  const filtered = _transferFilter === 'all' ? all : all.filter(r => r.status === _transferFilter);
   const c = document.getElementById('transferRequestsList');
   if (!filtered.length) { c.innerHTML = `<div class="card flex-center" style="height:160px;color:var(--text-muted);">No ${_transferFilter} requests.</div>`; return; }
 
   c.innerHTML = filtered.map(r => {
-    const urgCls = r.urgency==='critical'?'badge-red':r.urgency==='medium'?'badge-amber':'badge-teal';
-    const stCls  = r.status==='approved'?'badge-green':r.status==='rejected'?'badge-red':'badge-amber';
-    const typeCls = r.type==='request'?'badge-purple':'badge-blue';
-    const typeLabel = r.type==='request'?'Request IN':'Transfer OUT';
-    const date = new Date(r.requestedAt).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'});
-    const actions = r.status==='pending' ? `
+    const urgCls = r.urgency === 'critical' ? 'badge-red' : r.urgency === 'medium' ? 'badge-amber' : 'badge-teal';
+    const stCls = r.status === 'approved' ? 'badge-green' : r.status === 'rejected' ? 'badge-red' : 'badge-amber';
+    const typeCls = r.type === 'request' ? 'badge-purple' : 'badge-blue';
+    const typeLabel = r.type === 'request' ? 'Request IN' : 'Transfer OUT';
+    const date = new Date(r.requestedAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
+    const actions = r.status === 'pending' ? `
       <div class="tr-actions">
         <button class="btn btn-primary btn-sm" onclick="approveRequest('${r.id}')">Approve</button>
         <button class="btn btn-danger btn-sm" onclick="rejectRequest('${r.id}')">Reject</button>
@@ -839,8 +835,8 @@ function renderTransferRequests() {
         <span class="badge ${typeCls}" style="font-size:10px;">${typeLabel}</span>
         <div class="tr-medicine">${r.medicine} — <strong>${r.quantity} units</strong></div>
         <div style="display:flex;gap:8px;margin-left:auto;">
-          <span class="badge ${urgCls}">${r.urgency.charAt(0).toUpperCase()+r.urgency.slice(1)}</span>
-          <span class="badge ${stCls}">${r.status.charAt(0).toUpperCase()+r.status.slice(1)}</span>
+          <span class="badge ${urgCls}">${r.urgency.charAt(0).toUpperCase() + r.urgency.slice(1)}</span>
+          <span class="badge ${stCls}">${r.status.charAt(0).toUpperCase() + r.status.slice(1)}</span>
         </div>
       </div>
       <div class="tr-flow">
@@ -855,37 +851,39 @@ function renderTransferRequests() {
 }
 
 function approveRequest(id) {
-  const r = MOCK_DATA.transferRequests.find(r=>r.id===id); if(!r) return;
-  r.status='approved'; renderTransferRequests(); updateTransferBadge();
-  showToast(`${id} approved — ${r.quantity} units of ${r.medicine} confirmed.`,'success',4000);
+  const r = MOCK_DATA.transferRequests.find(r => r.id === id); if (!r) return;
+  r.status = 'approved'; renderTransferRequests(); updateTransferBadge();
+  showToast(`${id} approved — ${r.quantity} units of ${r.medicine} confirmed.`, 'success', 4000);
 }
 function rejectRequest(id) {
-  const r = MOCK_DATA.transferRequests.find(r=>r.id===id); if(!r) return;
-  r.status='rejected'; renderTransferRequests(); updateTransferBadge();
-  showToast(`${id} rejected.`,'warning');
+  const r = MOCK_DATA.transferRequests.find(r => r.id === id); if (!r) return;
+  r.status = 'rejected'; renderTransferRequests(); updateTransferBadge();
+  showToast(`${id} rejected.`, 'warning');
 }
 function updateTransferBadge() {
-  const n = MOCK_DATA.transferRequests.filter(r=>r.status==='pending').length;
-  const b = document.getElementById('pendingTransferBadge'); if(b) b.textContent = n;
+  const n = MOCK_DATA.transferRequests.filter(r => r.status === 'pending').length;
+  const b = document.getElementById('pendingTransferBadge'); if (b) b.textContent = n;
 }
 
 // ─── REDISTRIBUTION ──────────────────────────────────────────────
 function initRedistributionChart() {
   destroyChart('redist');
   const ctx = document.getElementById('redistributionChart').getContext('2d');
-  const meds = ['Paracetamol','Azithromycin','ORS Sachets','Cetirizine','Omeprazole'];
+  const meds = ['Paracetamol', 'Azithromycin', 'ORS Sachets', 'Cetirizine', 'Omeprazole'];
   charts.redist = new Chart(ctx, {
-    type:'bar',
-    data:{ labels:meds, datasets:MOCK_DATA.pharmacies.map((ph,i)=>({
-      label:ph.name.split(' - ')[0],
-      data:meds.map(m=>ph.inventory.find(it=>it.medicine===m)?.stock||0),
-      backgroundColor:[CC.purple,CC.teal,CC.amber][i], borderRadius:4
-    })) },
-    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom', labels:{ boxWidth:10, padding:12 } } }, scales:{ x:{ grid:{ display:false } }, y:{ beginAtZero:true, grid:{ color:_gc() } } } }
+    type: 'bar',
+    data: {
+      labels: meds, datasets: MOCK_DATA.pharmacies.map((ph, i) => ({
+        label: ph.name.split(' - ')[0],
+        data: meds.map(m => ph.inventory.find(it => it.medicine === m)?.stock || 0),
+        backgroundColor: [CC.purple, CC.teal, CC.amber][i], borderRadius: 4
+      }))
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 12 } } }, scales: { x: { grid: { display: false } }, y: { beginAtZero: true, grid: { color: _gc() } } } }
   });
 }
-function approveTransfer(btn, med, qty) { btn.closest('.transfer-card').style.opacity='0.4'; btn.textContent='Approved'; btn.disabled=true; showToast(`Transfer approved: ${qty} units of ${med}.`,'success'); }
-function runAutoRedistribution() { showToast('Auto-optimization complete. 3 redistribution orders created.','success',4000); }
+function approveTransfer(btn, med, qty) { btn.closest('.transfer-card').style.opacity = '0.4'; btn.textContent = 'Approved'; btn.disabled = true; showToast(`Transfer approved: ${qty} units of ${med}.`, 'success'); }
+function runAutoRedistribution() { showToast('Auto-optimization complete. 3 redistribution orders created.', 'success', 4000); }
 
 // ─── MEDICINE SEARCH ─────────────────────────────────────────────
 let _pendingPurchase = null;
@@ -902,21 +900,21 @@ function renderGenericTable() {
   const tb = document.getElementById('genericTableBody'); if (!tb) return;
   tb.innerHTML = MOCK_DATA.genericMap.map(m => {
     const save = m.brandPrice - m.genericPrice;
-    const pct  = ((save / m.brandPrice) * 100).toFixed(0);
+    const pct = ((save / m.brandPrice) * 100).toFixed(0);
     return `<tr>
       <td><strong>${m.brand}</strong></td>
-      <td>${m.generic}</td>
       <td style="color:var(--text-muted);font-size:12px;">${m.salt}</td>
       <td style="color:var(--accent-red);">₹${m.brandPrice}</td>
+      <td>${m.generic}</td>
       <td style="color:var(--accent-teal);font-weight:600;">₹${m.genericPrice}</td>
       <td><span class="badge badge-green">Save ₹${save} (${pct}%)</span></td>
-      <td><button class="btn btn-outline btn-sm" onclick="selectMed('${m.brand}')">Compare</button></td>
+      <td><button class="btn btn-primary btn-sm" onclick="selectMed('${m.brand}')">Buy</button></td>
     </tr>`;
   }).join('');
 }
 
 function liveSearchMed() {
-  const q    = document.getElementById('medSearchInput').value.toLowerCase();
+  const q = document.getElementById('medSearchInput').value.toLowerCase();
   const sugg = document.getElementById('medSearchSuggestions');
   if (q.length < 1) { sugg.style.display = 'none'; return; }
   const hits = MOCK_DATA.genericMap.filter(m =>
@@ -938,6 +936,7 @@ function selectMed(brand) {
   if (inp) inp.value = brand;
   document.getElementById('medSearchSuggestions').style.display = 'none';
   searchMedicine();
+  document.getElementById('medSearchResults').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function searchMedicine() {
@@ -951,7 +950,7 @@ function searchMedicine() {
     m.salt.toLowerCase().includes(q)
   );
 
-  const resultsEl     = document.getElementById('medSearchResults');
+  const resultsEl = document.getElementById('medSearchResults');
   const placeholderEl = document.getElementById('medSearchPlaceholder');
 
   if (!hits.length) {
@@ -966,7 +965,7 @@ function searchMedicine() {
   placeholderEl.style.display = 'none';
   resultsEl.innerHTML = hits.map(m => {
     const save = m.brandPrice - m.genericPrice;
-    const pct  = ((save / m.brandPrice) * 100).toFixed(0);
+    const pct = ((save / m.brandPrice) * 100).toFixed(0);
     return `
       <div class="med-result-card">
         <div class="med-result-header">
@@ -1003,7 +1002,7 @@ function searchMedicine() {
 
 function initiatePurchase(medicine, price, type, altName, salt) {
   _pendingPurchase = { medicine, price, type, altName, salt };
-  const typeLbl   = type === 'generic' ? 'Generic Medicine' : 'Brand Medicine';
+  const typeLbl = type === 'generic' ? 'Generic Medicine' : 'Brand Medicine';
   const typeColor = type === 'generic' ? 'var(--accent-teal)' : 'var(--accent-red)';
   document.getElementById('modalMedInfo').innerHTML = `
     <div class="modal-med-detail">
@@ -1042,46 +1041,39 @@ function initAnalyticsCharts() {
   const d = MOCK_DATA.diseaseTrend;
   destroyChart('analyticsLine');
   charts.analyticsLine = new Chart(document.getElementById('analyticsLineChart').getContext('2d'), {
-    type:'line',
-    data:{ labels:d.labels, datasets:Object.entries(d.datasets).map(([k,v],i)=>({ label:k, data:v, borderColor:[CC.red,CC.amber,CC.teal,CC.blue][i], tension:0.4, fill:false, pointRadius:4, borderWidth:2 })) },
-    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom', labels:{ boxWidth:10, padding:12 } } }, scales:{ x:{ grid:{ color:_gc() } }, y:{ beginAtZero:true, grid:{ color:_gc() } } } }
+    type: 'line',
+    data: { labels: d.labels, datasets: Object.entries(d.datasets).map(([k, v], i) => ({ label: k, data: v, borderColor: [CC.red, CC.amber, CC.teal, CC.blue][i], tension: 0.4, fill: false, pointRadius: 4, borderWidth: 2 })) },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 12 } } }, scales: { x: { grid: { color: _gc() } }, y: { beginAtZero: true, grid: { color: _gc() } } } }
   });
   destroyChart('invHealth');
   charts.invHealth = new Chart(document.getElementById('inventoryHealthChart').getContext('2d'), {
-    type:'bar',
-    data:{ labels:['Paracetamol','Azithromycin','Cetirizine','ORS Sachets','Omeprazole','Amoxicillin'],
-      datasets:MOCK_DATA.pharmacies.map((ph,i)=>({ label:ph.name.split(' - ')[0], data:ph.inventory.map(it=>Math.round((it.stock/it.threshold)*100)), backgroundColor:[CC.purple,CC.teal,CC.amber][i], borderRadius:4 })) },
-    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom', labels:{ boxWidth:10, padding:10 } } }, scales:{ x:{ grid:{ display:false } }, y:{ beginAtZero:true, max:300, grid:{ color:_gc() }, ticks:{ callback:v=>v+'%' } } } }
+    type: 'bar',
+    data: {
+      labels: ['Paracetamol', 'Azithromycin', 'Cetirizine', 'ORS Sachets', 'Omeprazole', 'Amoxicillin'],
+      datasets: MOCK_DATA.pharmacies.map((ph, i) => ({ label: ph.name.split(' - ')[0], data: ph.inventory.map(it => Math.round((it.stock / it.threshold) * 100)), backgroundColor: [CC.purple, CC.teal, CC.amber][i], borderRadius: 4 }))
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 10 } } }, scales: { x: { grid: { display: false } }, y: { beginAtZero: true, max: 300, grid: { color: _gc() }, ticks: { callback: v => v + '%' } } } }
   });
   destroyChart('topMed');
   charts.topMed = new Chart(document.getElementById('topMedChart').getContext('2d'), {
-    type:'bar',
-    data:{ labels:['Paracetamol','ORS','Azithromycin','Cetirizine','Omeprazole'], datasets:[{ label:'Units Sold', data:[2140,980,650,430,290], backgroundColor:CC.purple, borderRadius:5 }] },
-    options:{ responsive:true, maintainAspectRatio:false, indexAxis:'y', plugins:{ legend:{ display:false } }, scales:{ x:{ grid:{ color:_gc() } }, y:{ grid:{ display:false } } } }
+    type: 'bar',
+    data: { labels: ['Paracetamol', 'ORS', 'Azithromycin', 'Cetirizine', 'Omeprazole'], datasets: [{ label: 'Units Sold', data: [2140, 980, 650, 430, 290], backgroundColor: CC.purple, borderRadius: 5 }] },
+    options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { grid: { color: _gc() } }, y: { grid: { display: false } } } }
   });
   destroyChart('genericAdopt');
   charts.genericAdopt = new Chart(document.getElementById('genericAdoptionChart').getContext('2d'), {
-    type:'doughnut',
-    data:{ labels:['Generic','Brand'], datasets:[{ data:[62,38], backgroundColor:[CC.teal,CC.purple], borderWidth:2, borderColor:'transparent' }] },
-    options:{ responsive:true, maintainAspectRatio:false, cutout:'65%', plugins:{ legend:{ position:'bottom', labels:{ boxWidth:10, padding:12 } } } }
+    type: 'doughnut',
+    data: { labels: ['Generic', 'Brand'], datasets: [{ data: [62, 38], backgroundColor: [CC.teal, CC.purple], borderWidth: 2, borderColor: 'transparent' }] },
+    options: { responsive: true, maintainAspectRatio: false, cutout: '65%', plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 12 } } } }
   });
 }
 
-// ─── CRISIS SIMULATION ───────────────────────────────────────────
-function runCrisisSimulation() {
-  showToast('Crisis simulation: Dengue spike detected.','error',3000);
-  setTimeout(()=>showToast('Analysing data from 5 hospitals…','warning',3000),1200);
-  setTimeout(()=>showToast('Forecast: +350% Paracetamol demand in 7 days.','warning',3000),2800);
-  setTimeout(()=>showToast('Alerts dispatched to all 3 pharmacies.','success',4000),4500);
-  setTimeout(()=>showToast('Auto-redistribution: 400 units moved Jan Aushadhi → Apollo HSR.','success',4000),6200);
-  setTimeout(()=>showToast('Crisis response complete.','success',5000),8000);
-}
 
 // ─── INIT ────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   Auth.init();
   initTheme();
-  document.getElementById('storePinInput').addEventListener('keydown', e => { if(e.key==='Enter') loginStore(); });
-  document.getElementById('userPhoneInput').addEventListener('keydown', e => { if(e.key==='Enter') loginUser(); });
+  document.getElementById('storePinInput').addEventListener('keydown', e => { if (e.key === 'Enter') loginStore(); });
+  document.getElementById('userPhoneInput').addEventListener('keydown', e => { if (e.key === 'Enter') loginUser(); });
   if (Auth.isLoggedIn()) launchApp();
 });

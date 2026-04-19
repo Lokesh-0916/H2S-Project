@@ -338,7 +338,7 @@ body {
 
 /* ─── Theme Toggle ─── */
 .theme-toggle-btn {
-  width:38px; height:38px; border-radius:var(--radius-sm);
+  width:34px; height:34px; border-radius:var(--radius-sm);
   background:var(--bg-card); border:1px solid var(--border-color);
   display:flex; align-items:center; justify-content:center;
   cursor:pointer; transition:var(--transition); color:var(--text-secondary);

@@ -218,7 +218,6 @@
         <p id="pageSubtitle">Smart Healthcare Supply &amp; Secure Retail System</p>
       </div>
       <div class="header-actions">
-        <button class="header-btn store-only-btn" id="crisisBtn" onclick="runCrisisSimulation()">Crisis Simulation</button>
 
         <!-- Alerts button with dropdown -->
         <div class="alerts-btn-wrap store-only-btn" id="alertsBtnWrap">
@@ -259,19 +258,12 @@
         <div class="stats-grid">
           <div class="stat-card purple"><div class="stat-top"><span class="stat-sup">Pharmacies</span><span class="stat-trend neutral">Live</span></div><div class="stat-value" data-count="3">0</div><div class="stat-label">Connected</div></div>
           <div class="stat-card red"><div class="stat-top"><span class="stat-sup">Stock</span><span class="stat-trend down">+2 today</span></div><div class="stat-value" data-count="4">0</div><div class="stat-label">Critical Alerts</div></div>
-          <div class="stat-card amber"><div class="stat-top"><span class="stat-sup">Dengue</span><span class="stat-trend down">Rising</span></div><div class="stat-value" data-count="145">0</div><div class="stat-label">Active Cases</div></div>
-          <div class="stat-card teal"><div class="stat-top"><span class="stat-sup">Savings</span><span class="stat-trend up">847 patients</span></div><div class="stat-value">₹<span data-count="124500">0</span></div><div class="stat-label">Patient Savings</div></div>
-          <div class="stat-card blue"><div class="stat-top"><span class="stat-sup">Security</span><span class="stat-trend up">Protected</span></div><div class="stat-value" data-count="12">0</div><div class="stat-label">Frauds Blocked</div></div>
           <div class="stat-card green"><div class="stat-top"><span class="stat-sup">Volume</span><span class="stat-trend up">This week</span></div><div class="stat-value" data-count="847">0</div><div class="stat-label">Patients Served</div></div>
         </div>
-        <div class="grid-2-1" style="margin-bottom:20px;">
+        <div style="margin-bottom:20px;">
           <div class="card">
             <div class="card-title">Disease Trend — Last 7 Days</div>
             <div class="chart-container tall"><canvas id="trendChartDash"></canvas></div>
-          </div>
-          <div class="card">
-            <div class="card-title">Live Alerts</div>
-            <div class="alerts-list" id="dashAlertsFeed"></div>
           </div>
         </div>
         <div class="grid-2">
@@ -369,7 +361,6 @@
       <section class="section" id="section-disease-monitor">
         <div class="section-header">
           <div><h2>Disease Monitor</h2><p>Real-time outbreak tracking from hospital and NGO data</p></div>
-          <button class="btn btn-primary btn-sm" onclick="addDiseaseSample()">Add Sample</button>
         </div>
         <div class="grid-2" style="margin-bottom:20px;">
           <div class="card">
@@ -693,7 +684,7 @@
           <div class="card-title">Medicine Database</div>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>Brand</th><th>Generic</th><th>Composition</th><th>Brand Price</th><th>Generic Price</th><th>Savings</th><th></th></tr></thead>
+              <thead><tr><th>Brand</th><th>Composition</th><th>Brand Price</th><th>Generic Medicines</th><th>Generic Price</th><th>Savings</th><th></th></tr></thead>
               <tbody id="genericTableBody"></tbody>
             </table>
           </div>
