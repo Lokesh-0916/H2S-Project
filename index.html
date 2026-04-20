@@ -218,6 +218,10 @@
         <p id="pageSubtitle">Smart Healthcare Supply &amp; Secure Retail System</p>
       </div>
       <div class="header-actions">
+        <div class="status-badge" id="backendStatus">
+          <span class="status-dot"></span>
+          <span id="statusText">Offline</span>
+        </div>
         <button class="header-btn store-only-btn" id="crisisBtn" onclick="runCrisisSimulation()">Crisis Simulation</button>
 
         <!-- Alerts button with dropdown -->
@@ -536,7 +540,6 @@
           <div><h2>Stock Transfers</h2><p>Send stock to another store, or request stock from a store with surplus</p></div>
           <button class="btn btn-primary btn-sm" onclick="openNewTransferModal()">New Request</button>
         </div>
-
         <!-- Transfer Form -->
         <div class="card" id="newTransferForm" style="display:none;margin-bottom:20px;border-color:rgba(108,99,255,0.25);">
           <div class="card-title">New Transfer Request</div>

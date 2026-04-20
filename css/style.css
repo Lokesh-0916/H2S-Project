@@ -603,6 +603,33 @@ tr:hover td { background:rgba(255,255,255,0.02); }
 .badge-blue   { background:rgba(64,169,255,0.14);  color:var(--accent-blue); }
 .badge-teal   { background:rgba(0,212,170,0.14);   color:var(--accent-teal); }
 
+/* Connection Status */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(255, 82, 82, 0.1);
+  color: var(--accent-red);
+  border: 1px solid rgba(255, 82, 82, 0.2);
+  margin-right: 8px;
+  transition: all 0.3s ease;
+}
+.status-badge.online {
+  background: rgba(0, 212, 170, 0.1);
+  color: var(--accent-teal);
+  border: 1px solid rgba(0, 212, 170, 0.2);
+}
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
 /* ════════════════════════════════════
    PROGRESS BAR
    ════════════════════════════════════ */

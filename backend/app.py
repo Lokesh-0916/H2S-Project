@@ -447,12 +447,12 @@ def auto_seed():
         # Check if master data exists
         if medicines_col.count_documents({}) == 0 or diseases_col.count_documents({}) == 0:
             print("Master data empty. Auto-seeding medicines and diseases...")
-            seed_master_data()
+            seed_master()
         
         # Check if inventory exists
         if inventory_col.count_documents({}) == 0:
             print("Inventory empty. Auto-seeding default inventory...")
-            seed_inventory_data()
+            seed_inventory()
             
         print("Database health check: OK")
     except Exception as e:

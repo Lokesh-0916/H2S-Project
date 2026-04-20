@@ -1445,10 +1445,32 @@ function runCrisisSimulation() {
 }
 
 // ─── INIT ────────────────────────────────────────────────────────
+async function checkBackend() {
+  const badge = document.getElementById('backendStatus');
+  const text  = document.getElementById('statusText');
+  if (!badge || !text) return;
+
+  try {
+    const res = await fetch('http://localhost:5000/');
+    const data = await res.json();
+    if (data.status.includes('Running')) {
+      badge.classList.add('online');
+      text.textContent = 'Backend Online';
+      return true;
+    }
+  } catch (err) {
+    badge.classList.remove('online');
+    text.textContent = 'Backend Offline';
+  }
+  return false;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   try {
     Auth.init();
     initTheme();
+    checkBackend();
+    setInterval(checkBackend, 5000); // Check every 5s
     
     const storePin = document.getElementById('storePinInput');
     if (storePin) storePin.addEventListener('keydown', e => { if(e.key==='Enter') loginStore(); });
