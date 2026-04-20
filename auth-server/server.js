@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const cors     = require('cors');
 const helmet   = require('helmet');
 const morgan   = require('morgan');
+const passport = require('./middleware/passport');
 
 const { apiLimiter } = require('./middleware/rateLimiter');
 const authRoutes    = require('./routes/auth');
@@ -14,7 +15,10 @@ const app  = express();
 const PORT = process.env.PORT || 3001;
 
 // ── Security headers ─────────────────────────────────────
-app.use(helmet());
+app.use(helmet({ contentSecurityPolicy: false }));
+
+// ── Passport (OAuth) ─────────────────────────────────────
+app.use(passport.initialize());
 
 // ── CORS — allow all localhost origins in dev ─────────────
 app.use(cors({

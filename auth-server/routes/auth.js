@@ -1,7 +1,8 @@
-const express = require('express');
+const express   = require('express');
 const { body, validationResult } = require('express-validator');
-const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+const jwt       = require('jsonwebtoken');
+const passport  = require('../middleware/passport');
+const User      = require('../models/User');
 const { authLimiter, signupLimiter } = require('../middleware/rateLimiter');
 
 const router = express.Router();
@@ -283,12 +284,39 @@ router.post(
   }
 );
 
-// ── OAUTH PLACEHOLDERS (Coming Soon) ─────────────────────
-router.get('/google', (req, res) => {
-  res.status(501).json({ success: false, error: 'Google OAuth coming soon. Please use email/password login.' });
-});
-router.get('/microsoft', (req, res) => {
-  res.status(501).json({ success: false, error: 'Microsoft OAuth coming soon. Please use email/password login.' });
-});
+// ── GOOGLE OAUTH ──────────────────────────────────────────
+// Step 1: Redirect user to Google consent screen
+router.get(
+  '/google',
+  passport.authenticate('google', { scope: ['profile', 'email'], session: false })
+);
+
+// Step 2: Google redirects back here with code
+router.get(
+  '/google/callback',
+  passport.authenticate('google', { failureRedirect: `${process.env.FRONTEND_URL}?oauth_error=google_failed`, session: false }),
+  (req, res) => {
+    const token = issueToken(req.user);
+    // Redirect to frontend with token in query param
+    res.redirect(`${process.env.FRONTEND_URL}?oauth_token=${token}&provider=google`);
+  }
+);
+
+// ── MICROSOFT OAUTH ───────────────────────────────────────
+// Step 1: Redirect user to Microsoft consent screen
+router.get(
+  '/microsoft',
+  passport.authenticate('microsoft', { session: false })
+);
+
+// Step 2: Microsoft redirects back here with code
+router.get(
+  '/microsoft/callback',
+  passport.authenticate('microsoft', { failureRedirect: `${process.env.FRONTEND_URL}?oauth_error=microsoft_failed`, session: false }),
+  (req, res) => {
+    const token = issueToken(req.user);
+    res.redirect(`${process.env.FRONTEND_URL}?oauth_token=${token}&provider=microsoft`);
+  }
+);
 
 module.exports = router;

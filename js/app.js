@@ -255,9 +255,49 @@ function checkPasswordStrength(pw) {
   label.style.color    = score > 3 ? 'var(--accent-teal)' : score > 1 ? 'var(--accent-amber)' : 'var(--accent-red)';
 }
 
-// ─── SOCIAL OAUTH (Coming Soon) ────────────────────────────────────────────
-function socialComingSoon(provider) {
-  showToast(`${provider} sign-in is coming soon. Please use email & password for now.`, 'info', 4500);
+// ─── SOCIAL OAUTH ───────────────────────────────────────────────────────────
+function socialLogin(provider) {
+  if (!['google', 'microsoft'].includes(provider)) return;
+  // Redirect browser to the auth server OAuth endpoint
+  // After success, the server redirects back with ?oauth_token=<jwt>&provider=<name>
+  window.location.href = `${AUTH_URL}/auth/${provider}`;
+}
+
+// Called on page load — check if we just came back from an OAuth redirect
+function _handleOAuthCallback() {
+  const params = new URLSearchParams(window.location.search);
+  const token  = params.get('oauth_token');
+  const providerName = params.get('provider');
+  const oauthError   = params.get('oauth_error');
+
+  // Clean the URL regardless
+  if (token || oauthError) {
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }
+
+  if (oauthError) {
+    const msg = oauthError === 'google_failed'
+      ? 'Google sign-in failed. Please try again.'
+      : 'Microsoft sign-in failed. Please try again.';
+    showToast(msg, 'error', 5000);
+    return;
+  }
+
+  if (token) {
+    try {
+      const payload = _decodeJwt(token);
+      if (!payload) { showToast('Invalid session token. Please log in again.', 'error'); return; }
+      if (payload.exp && Date.now() / 1000 > payload.exp) { showToast('Session expired. Please log in again.', 'error'); return; }
+
+      Auth.login(token, payload);
+      const name = payload.name || payload.email?.split('@')[0] || 'User';
+      const prov = providerName ? providerName.charAt(0).toUpperCase() + providerName.slice(1) : 'OAuth';
+      showToast(`Welcome, ${name}! Signed in with ${prov}.`, 'success', 4000);
+      launchApp();
+    } catch (e) {
+      showToast('Sign-in error. Please try again.', 'error');
+    }
+  }
 }
 
 // ─── ERROR HELPERS ─────────────────────────────────────────────────────────
@@ -1715,7 +1755,10 @@ function initAnalyticsCharts() {
 document.addEventListener('DOMContentLoaded', () => {
   Auth.init();
   initTheme();
-  document.getElementById('storePinInput').addEventListener('keydown', e => { if (e.key === 'Enter') loginStore(); });
-  document.getElementById('userPhoneInput').addEventListener('keydown', e => { if (e.key === 'Enter') loginUser(); });
+  // Handle OAuth redirect-back (Google / Microsoft)
+  _handleOAuthCallback();
+  document.getElementById('storePinInput')?.addEventListener('keydown', e => { if (e.key === 'Enter') loginStore(); });
+  document.getElementById('loginEmail')?.addEventListener('keydown', e => { if (e.key === 'Enter') loginUser(); });
+  document.getElementById('loginPassword')?.addEventListener('keydown', e => { if (e.key === 'Enter') loginUser(); });
   if (Auth.isLoggedIn()) launchApp();
 });
