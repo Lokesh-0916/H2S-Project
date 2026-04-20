@@ -294,11 +294,24 @@ router.get(
 // Step 2: Google redirects back here with code
 router.get(
   '/google/callback',
-  passport.authenticate('google', { failureRedirect: `${process.env.FRONTEND_URL}?oauth_error=google_failed`, session: false }),
-  (req, res) => {
-    const token = issueToken(req.user);
-    // Redirect to frontend with token in query param
-    res.redirect(`${process.env.FRONTEND_URL}?oauth_token=${token}&provider=google`);
+  (req, res, next) => {
+    passport.authenticate('google', { session: false }, (err, user, info) => {
+      if (err) {
+        console.error('[Google OAuth Error]', err);
+        return res.redirect(`${process.env.FRONTEND_URL}?oauth_error=google_failed&reason=${encodeURIComponent(err.message || 'Unknown Error')}`);
+      }
+      if (!user) {
+        console.log('[Google Auth] No user returned:', info);
+        return res.redirect(`${process.env.FRONTEND_URL}?oauth_error=google_failed&reason=no_user`);
+      }
+      try {
+        const token = issueToken(user);
+        res.redirect(`${process.env.FRONTEND_URL}?oauth_token=${token}&provider=google`);
+      } catch (issueErr) {
+        console.error('[Google Token Issue Error]', issueErr);
+        res.redirect(`${process.env.FRONTEND_URL}?oauth_error=google_failed&reason=token_issue_error`);
+      }
+    })(req, res, next);
   }
 );
 
@@ -312,10 +325,24 @@ router.get(
 // Step 2: Microsoft redirects back here with code
 router.get(
   '/microsoft/callback',
-  passport.authenticate('microsoft', { failureRedirect: `${process.env.FRONTEND_URL}?oauth_error=microsoft_failed`, session: false }),
-  (req, res) => {
-    const token = issueToken(req.user);
-    res.redirect(`${process.env.FRONTEND_URL}?oauth_token=${token}&provider=microsoft`);
+  (req, res, next) => {
+    passport.authenticate('microsoft', { session: false }, (err, user, info) => {
+      if (err) {
+        console.error('[Microsoft OAuth Error]', err);
+        return res.redirect(`${process.env.FRONTEND_URL}?oauth_error=microsoft_failed&reason=${encodeURIComponent(err.message || 'Unknown Error')}`);
+      }
+      if (!user) {
+        console.log('[Microsoft Auth] No user returned:', info);
+        return res.redirect(`${process.env.FRONTEND_URL}?oauth_error=microsoft_failed&reason=no_user`);
+      }
+      try {
+        const token = issueToken(user);
+        res.redirect(`${process.env.FRONTEND_URL}?oauth_token=${token}&provider=microsoft`);
+      } catch (issueErr) {
+        console.error('[Microsoft Token Issue Error]', issueErr);
+        res.redirect(`${process.env.FRONTEND_URL}?oauth_error=microsoft_failed&reason=token_issue_error`);
+      }
+    })(req, res, next);
   }
 );
 

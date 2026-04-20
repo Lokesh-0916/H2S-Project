@@ -269,6 +269,7 @@ function _handleOAuthCallback() {
   const token  = params.get('oauth_token');
   const providerName = params.get('provider');
   const oauthError   = params.get('oauth_error');
+  const reason       = params.get('reason');
 
   // Clean the URL regardless
   if (token || oauthError) {
@@ -276,9 +277,13 @@ function _handleOAuthCallback() {
   }
 
   if (oauthError) {
-    const msg = oauthError === 'google_failed'
+    let msg = oauthError === 'google_failed'
       ? 'Google sign-in failed. Please try again.'
       : 'Microsoft sign-in failed. Please try again.';
+    if (reason) {
+      msg += ` (Reason: ${reason})`;
+      console.error('[OAuth Error]', oauthError, reason);
+    }
     showToast(msg, 'error', 5000);
     return;
   }
