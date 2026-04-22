@@ -14,7 +14,8 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
     async (accessToken, refreshToken, profile, done) => {
       try {
         const email = profile.emails?.[0]?.value;
-        if (!email) return done(new Error('No email from Google'), null);
+        console.log('[Google Auth] Profile received:', { id: profile.id, email });
+        if (!email) return done(new Error('No email returned from Google profile'), null);
 
         let user = await User.findOne({ email });
         if (user) {
@@ -33,8 +34,10 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
             profile: { name: profile.displayName || email.split('@')[0] },
           });
         }
+        console.log('[Google Auth] Successfully processed profile for:', email);
         return done(null, user);
       } catch (err) {
+        console.error('[Google Auth Strategy Error]', err);
         return done(err, null);
       }
     }

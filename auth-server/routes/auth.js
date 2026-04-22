@@ -305,8 +305,11 @@ router.get(
         return res.redirect(`${process.env.FRONTEND_URL}?oauth_error=google_failed&reason=no_user`);
       }
       try {
+        console.log('[Google Auth] Issuing token for:', user.email);
         const token = issueToken(user);
-        res.redirect(`${process.env.FRONTEND_URL}?oauth_token=${token}&provider=google`);
+        const redirectUrl = `${process.env.FRONTEND_URL}?oauth_token=${token}&provider=google`;
+        console.log('[Google Auth] Redirecting to:', redirectUrl);
+        res.redirect(redirectUrl);
       } catch (issueErr) {
         console.error('[Google Token Issue Error]', issueErr);
         res.redirect(`${process.env.FRONTEND_URL}?oauth_error=google_failed&reason=token_issue_error`);
