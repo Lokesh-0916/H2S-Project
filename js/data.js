@@ -161,6 +161,7 @@ const MOCK_DATA = {
   transferRequests: [
     {
       id: 'TR001',
+      type: 'send',
       fromPharmacy: 'PH003',
       fromName: 'Jan Aushadhi - Indiranagar',
       toPharmacy: 'PH002',
@@ -175,6 +176,7 @@ const MOCK_DATA = {
     },
     {
       id: 'TR002',
+      type: 'request',
       fromPharmacy: 'PH003',
       fromName: 'Jan Aushadhi - Indiranagar',
       toPharmacy: 'PH002',
@@ -189,6 +191,7 @@ const MOCK_DATA = {
     },
     {
       id: 'TR003',
+      type: 'send',
       fromPharmacy: 'PH002',
       fromName: 'Apollo Pharmacy - HSR',
       toPharmacy: 'PH001',
@@ -203,6 +206,7 @@ const MOCK_DATA = {
     },
     {
       id: 'TR004',
+      type: 'request',
       fromPharmacy: 'PH001',
       fromName: 'MedPlus - Koramangala',
       toPharmacy: 'PH002',
