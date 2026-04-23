@@ -19,6 +19,756 @@ const Auth = {
   phId()      { return this._s?.pharmacyId || null; },
 };
 
+
+// Lightweight JWT decoder (no verification — server does that)
+function _decodeJwt(token) {
+  try {
+    const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    return JSON.parse(atob(base64));
+  } catch { return null; }
+}
+
+// ─── STORES LIST (embedded, mirrors server data) ──────────────────────────
+const STORES_LIST = [
+  // Apollo Pharmacy
+  { id:'PH002',  name:'Apollo Pharmacy — HSR Layout, Bengaluru',         group:'Apollo Pharmacy',    type:'chain' },
+  { id:'AP002',  name:'Apollo Pharmacy — Koramangala, Bengaluru',         group:'Apollo Pharmacy',    type:'chain' },
+  { id:'AP003',  name:'Apollo Pharmacy — Connaught Place, Delhi',         group:'Apollo Pharmacy',    type:'chain' },
+  { id:'AP004',  name:'Apollo Pharmacy — Anna Nagar, Chennai',            group:'Apollo Pharmacy',    type:'chain' },
+  { id:'AP005',  name:'Apollo Pharmacy — Banjara Hills, Hyderabad',       group:'Apollo Pharmacy',    type:'chain' },
+  // MedPlus
+  { id:'PH001',  name:'MedPlus — Koramangala, Bengaluru',                 group:'MedPlus',            type:'chain' },
+  { id:'MP002',  name:'MedPlus — Jubilee Hills, Hyderabad',               group:'MedPlus',            type:'chain' },
+  { id:'MP003',  name:'MedPlus — Salt Lake, Kolkata',                     group:'MedPlus',            type:'chain' },
+  { id:'MP004',  name:'MedPlus — Vadapalani, Chennai',                    group:'MedPlus',            type:'chain' },
+  { id:'MP005',  name:'MedPlus — Viman Nagar, Pune',                      group:'MedPlus',            type:'chain' },
+  // Jan Aushadhi
+  { id:'PH003',  name:'Jan Aushadhi — Indiranagar, Bengaluru',            group:'Jan Aushadhi',       type:'chain' },
+  { id:'JA002',  name:'Jan Aushadhi — Lajpat Nagar, Delhi',               group:'Jan Aushadhi',       type:'chain' },
+  { id:'JA003',  name:'Jan Aushadhi — Andheri, Mumbai',                   group:'Jan Aushadhi',       type:'chain' },
+  { id:'JA004',  name:'Jan Aushadhi — Alwarpet, Chennai',                 group:'Jan Aushadhi',       type:'chain' },
+  { id:'JA005',  name:'Jan Aushadhi — Sector 22, Chandigarh',             group:'Jan Aushadhi',       type:'chain' },
+  // Netmeds
+  { id:'NM001',  name:'Netmeds Pharmacy — T. Nagar, Chennai',             group:'Netmeds',            type:'chain' },
+  { id:'NM002',  name:'Netmeds Pharmacy — Whitefield, Bengaluru',         group:'Netmeds',            type:'chain' },
+  // 1mg
+  { id:'1MG001', name:'1mg Store — Sector 62, Noida',                     group:'1mg',                type:'chain' },
+  { id:'1MG002', name:'1mg Store — Gurgaon Cyber Hub',                    group:'1mg',                type:'chain' },
+  // PharmEasy
+  { id:'PE001',  name:'PharmEasy Hub — Andheri, Mumbai',                  group:'PharmEasy',          type:'chain' },
+  { id:'PE002',  name:'PharmEasy Hub — Electronic City, Bengaluru',       group:'PharmEasy',          type:'chain' },
+  // Wellness Forever
+  { id:'WF001',  name:'Wellness Forever — Bandra, Mumbai',                group:'Wellness Forever',   type:'chain' },
+  { id:'WF002',  name:'Wellness Forever — Kothrud, Pune',                 group:'Wellness Forever',   type:'chain' },
+  // Healthkart
+  { id:'HK001',  name:'Healthkart — Rajouri Garden, Delhi',               group:'Healthkart',         type:'chain' },
+  { id:'HK002',  name:'Healthkart — Indiranagar, Bengaluru',              group:'Healthkart',         type:'chain' },
+  // Others
+  { id:'NPM001', name:'Noble Plus Medical — Nungambakkam, Chennai',       group:'Noble Plus',         type:'chain' },
+  { id:'FR001',  name:'Frank Ross Pharmacy — Park Street, Kolkata',       group:'Frank Ross',         type:'chain' },
+  { id:'FP001',  name:'Fortis HealthSutra Pharmacy — Gurugram',           group:'Fortis HealthSutra', type:'chain' },
+  { id:'MAN001', name:'Manipal Hospital Pharmacy — Old Airport Rd, Blr',  group:'Manipal',            type:'chain' },
+  { id:'SD001',  name:'Sagar Drugs & Pharmaceuticals — Bengaluru',        group:'Sagar Drugs',        type:'chain' },
+  { id:'SP001',  name:'Sparsh Pharmacy — Yeshwanthpur, Bengaluru',        group:'Sparsh',             type:'chain' },
+  // Local
+  { id:'LOCAL',  name:'+ Register My Local / Independent Pharmacy',       group:'',                   type:'local' },
+];
+
+// Demo PINs (only for pre-seeded stores)
+const DEMO_PINS = {
+  'PH002':'5678','PH001':'1234','PH003':'9012',
+};
+
+// ─── STORE SEARCH DROPDOWN ────────────────────────────────────────────────
+let _selectedStore = null;
+
+function filterStoreDropdown() {
+  const q    = (document.getElementById('storeSearchInput')?.value || '').toLowerCase().trim();
+  const dd   = document.getElementById('storeDropdown');
+  if (!dd) return;
+
+  const filtered = q
+    ? STORES_LIST.filter(s => s.name.toLowerCase().includes(q) || s.group.toLowerCase().includes(q))
+    : STORES_LIST;
+
+  if (!filtered.length) { dd.innerHTML = '<div style="padding:12px 14px;color:var(--text-muted);font-size:13px;">No pharmacies found</div>'; dd.classList.add('open'); return; }
+
+  // Group by chain name
+  const groups = {};
+  filtered.forEach(s => {
+    const g = s.group || 'Other';
+    if (!groups[g]) groups[g] = [];
+    groups[g].push(s);
+  });
+
+  let html = '';
+  Object.entries(groups).forEach(([grp, items]) => {
+    if (grp) html += `<div class="store-dropdown-group">${grp}</div>`;
+    items.forEach(s => {
+      const isLocal = s.type === 'local';
+      html += `<div class="store-dropdown-item${isLocal ? ' local-item' : ''}" onclick="selectStore('${s.id}','${s.type}','${s.name.replace(/'/g, "&apos;")}')"><span class="store-chain-dot${isLocal ? ' local' : ''}"></span>${s.name}</div>`;
+    });
+  });
+
+  dd.innerHTML = html;
+  dd.classList.add('open');
+}
+
+function selectStore(id, type, name) {
+  _selectedStore = { id, type, name };
+  document.getElementById('storeSearchInput').value = '';
+  document.getElementById('storeDropdown').classList.remove('open');
+
+  // Show selected pill
+  const pill = document.getElementById('selectedStorePill');
+  pill.innerHTML = `<span>${name}</span><button class="pill-clear" onclick="clearStoreSelection()">×</button>`;
+  pill.style.display = 'flex';
+
+  // Show correct section
+  document.getElementById('storePinSection').style.display      = 'none';
+  document.getElementById('storeEmailSection').style.display    = 'none';
+  document.getElementById('storeRegisterSection').style.display = 'none';
+  _clearAuthErrors();
+
+  if (type === 'local') {
+    document.getElementById('storeRegisterSection').style.display = 'block';
+  } else {
+    document.getElementById('storePinSection').style.display = 'block';
+    document.getElementById('storePinInput').focus();
+  }
+}
+
+function clearStoreSelection() {
+  _selectedStore = null;
+  document.getElementById('selectedStorePill').style.display    = 'none';
+  document.getElementById('storePinSection').style.display      = 'none';
+  document.getElementById('storeEmailSection').style.display    = 'none';
+  document.getElementById('storeRegisterSection').style.display = 'none';
+  document.getElementById('storeSearchInput').value = '';
+  _clearAuthErrors();
+}
+
+// Close dropdown on outside click
+document.addEventListener('click', e => {
+  const dd = document.getElementById('storeDropdown');
+  const inp = document.getElementById('storeSearchInput');
+  if (dd && inp && !dd.contains(e.target) && e.target !== inp) {
+    dd.classList.remove('open');
+  }
+});
+
+// ─── ROLE SELECTOR ────────────────────────────────────────────────────────
+let _role = null;
+
+function selectRole(role) {
+  _role = role;
+  const id = role === 'store' ? 'storeLoginForm' : 'userLoginForm';
+  document.getElementById('roleSelector').style.display = 'none';
+  const f = document.getElementById(id);
+  f.style.display = 'block';
+  f.classList.remove('slide-in');
+  void f.offsetWidth;
+  f.classList.add('slide-in');
+
+  // Populate store dropdown on open
+  if (role === 'store') filterStoreDropdown();
+}
+
+function resetRole() {
+  _role = null;
+  document.getElementById('roleSelector').style.display = 'flex';
+  document.getElementById('storeLoginForm').style.display = 'none';
+  document.getElementById('userLoginForm').style.display  = 'none';
+  clearStoreSelection();
+}
+
+// ─── AUTH-TAB SWITCHER (Login / Sign Up) ──────────────────────────────────
+function switchAuthTab(tab) {
+  const isLogin = tab === 'login';
+  document.getElementById('tabLogin').classList.toggle('active', isLogin);
+  document.getElementById('tabSignup').classList.toggle('active', !isLogin);
+  document.getElementById('panelLogin').style.display  = isLogin ? 'block' : 'none';
+  document.getElementById('panelSignup').style.display = isLogin ? 'none'  : 'block';
+  _clearAuthErrors();
+}
+
+// ─── PASSWORD SHOW/HIDE ───────────────────────────────────────────────────
+function togglePinVisibility(inputId, iconId) {
+  const inp = document.getElementById(inputId);
+  if (!inp) return;
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+}
+
+// ─── PASSWORD STRENGTH ─────────────────────────────────────────────────────
+function checkPasswordStrength(pw) {
+  const bar   = document.getElementById('pwStrengthFill');
+  const label = document.getElementById('pwStrengthLabel');
+  if (!bar || !label) return;
+
+  let score = 0;
+  if (pw.length >= 8)            score++;
+  if (/[A-Z]/.test(pw))         score++;
+  if (/[0-9]/.test(pw))         score++;
+  if (/[^A-Za-z0-9]/.test(pw))  score++;
+  if (pw.length >= 12)           score++;
+
+  const levels = [
+    { pct: '0%',   color: 'var(--accent-red)',    text: '' },
+    { pct: '25%',  color: 'var(--accent-red)',    text: 'Weak' },
+    { pct: '50%',  color: 'var(--accent-amber)',  text: 'Fair' },
+    { pct: '75%',  color: 'var(--accent-amber)',  text: 'Good' },
+    { pct: '90%',  color: 'var(--accent-teal)',   text: 'Strong' },
+    { pct: '100%', color: 'var(--accent-green)',  text: 'Very Strong' },
+  ];
+  const lvl = levels[Math.min(score, 5)];
+  bar.style.width      = lvl.pct;
+  bar.style.background = lvl.color;
+  label.textContent    = lvl.text;
+  label.style.color    = score > 3 ? 'var(--accent-teal)' : score > 1 ? 'var(--accent-amber)' : 'var(--accent-red)';
+}
+
+// ─── SOCIAL OAUTH ───────────────────────────────────────────────────────────
+function socialLogin(provider) {
+  if (!['google', 'microsoft'].includes(provider)) return;
+  // Redirect browser to the auth server OAuth endpoint
+  // After success, the server redirects back with ?oauth_token=<jwt>&provider=<name>
+  window.location.href = `${AUTH_URL}/auth/${provider}`;
+}
+
+// Called on page load — check if we just came back from an OAuth redirect
+function _handleOAuthCallback() {
+  const params = new URLSearchParams(window.location.search);
+  const token  = params.get('oauth_token');
+  const providerName = params.get('provider');
+  const oauthError   = params.get('oauth_error');
+  const reason       = params.get('reason');
+
+  // Clean the URL regardless
+  if (token || oauthError) {
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }
+
+  if (oauthError) {
+    let msg = oauthError === 'google_failed'
+      ? 'Google sign-in failed. Please try again.'
+      : 'Microsoft sign-in failed. Please try again.';
+    if (reason) {
+      msg += ` (Reason: ${reason})`;
+      console.error('[OAuth Error]', oauthError, reason);
+    }
+    showToast(msg, 'error', 5000);
+    return;
+  }
+
+  if (token) {
+    try {
+      const payload = _decodeJwt(token);
+      if (!payload) { showToast('Invalid session token. Please log in again.', 'error'); return; }
+      if (payload.exp && Date.now() / 1000 > payload.exp) { showToast('Session expired. Please log in again.', 'error'); return; }
+
+      Auth.login(token, payload);
+      const name = payload.name || payload.email?.split('@')[0] || 'User';
+      const prov = providerName ? providerName.charAt(0).toUpperCase() + providerName.slice(1) : 'OAuth';
+      showToast(`Welcome, ${name}! Signed in with ${prov}.`, 'success', 4000);
+      launchApp();
+    } catch (e) {
+      showToast('Sign-in error. Please try again.', 'error');
+    }
+  }
+}
+
+// ─── ERROR HELPERS ─────────────────────────────────────────────────────────
+function _showError(elId, msg) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+function _hideError(elId) {
+  const el = document.getElementById(elId);
+  if (el) el.style.display = 'none';
+}
+function _clearAuthErrors() {
+  ['loginError','signupError','storeLoginError','storeEmailLoginError','storeRegError','profileSaveError']
+    .forEach(_hideError);
+}
+
+// ─── PATIENT LOGIN ──────────────────────────────────────────────────────────
+async function loginUser() {
+  const email    = (document.getElementById('loginEmail')?.value    || '').trim();
+  const password = (document.getElementById('loginPassword')?.value || '').trim();
+  _hideError('loginError');
+
+  if (!email)    { _shake('loginEmail');    _showError('loginError', 'Email is required.'); return; }
+  if (!password) { _shake('loginPassword'); _showError('loginError', 'Password is required.'); return; }
+
+  const btn = document.getElementById('userLoginBtn');
+  _setBtnLoading(btn, 'Signing in…');
+
+  try {
+    const res  = await fetch(`${AUTH_URL}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      _showError('loginError', data.error || 'Login failed.');
+      _shake('loginPassword');
+      document.getElementById('loginPassword').value = '';
+      return;
+    }
+
+    Auth.login(data.token, { ...data.user, role: 'patient' });
+    launchApp();
+  } catch (err) {
+    // Auth server offline — allow demo login
+    _showError('loginError', 'Auth server offline. Using demo mode.');
+    setTimeout(() => {
+      _hideError('loginError');
+      Auth.login('demo_patient_token', { role: 'patient', email, name: email.split('@')[0], profile: { name: email.split('@')[0] } });
+      launchApp();
+    }, 1500);
+  } finally {
+    _resetBtn(btn, 'Log In');
+  }
+}
+
+// ─── PATIENT SIGNUP ──────────────────────────────────────────────────────────
+async function signupUser() {
+  const name     = (document.getElementById('signupName')?.value     || '').trim();
+  const email    = (document.getElementById('signupEmail')?.value    || '').trim();
+  const password = (document.getElementById('signupPassword')?.value || '').trim();
+  _hideError('signupError');
+
+  if (!name)     { _shake('signupName');     _showError('signupError', 'Full name is required.'); return; }
+  if (!email)    { _shake('signupEmail');     _showError('signupError', 'Email is required.'); return; }
+  if (!password) { _shake('signupPassword'); _showError('signupError', 'Password is required.'); return; }
+
+  const btn = document.getElementById('signupBtn');
+  _setBtnLoading(btn, 'Creating account…');
+
+  try {
+    const res  = await fetch(`${AUTH_URL}/auth/signup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, name }),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      const msg = data.errors ? data.errors.map(e => e.msg).join(' · ') : (data.error || 'Sign up failed.');
+      _showError('signupError', msg);
+      return;
+    }
+
+    Auth.login(data.token, { ...data.user, role: 'patient' });
+    showToast(`Welcome to MedSmart, ${name}!`, 'success', 4000);
+    launchApp();
+  } catch (err) {
+    // Demo fallback
+    _showError('signupError', 'Auth server offline. Using demo mode.');
+    setTimeout(() => {
+      _hideError('signupError');
+      Auth.login('demo_patient_token', { role: 'patient', email, name, profile: { name } });
+      showToast(`Welcome, ${name}! (demo mode)`, 'success', 4000);
+      launchApp();
+    }, 1500);
+  } finally {
+    _resetBtn(btn, 'Create Account');
+  }
+}
+
+// ─── STORE LOGIN (PIN — chain stores) ─────────────────────────────────────
+async function loginStore() {
+  if (!_selectedStore) { showToast('Please select a pharmacy first.', 'error'); return; }
+  const pin = (document.getElementById('storePinInput')?.value || '').trim();
+  _hideError('storeLoginError');
+
+  if (!pin) { _shake('storePinInput'); _showError('storeLoginError', 'Please enter your PIN.'); return; }
+
+  const btn = document.getElementById('storeLoginBtn');
+  _setBtnLoading(btn, 'Logging in…');
+
+  try {
+    const res  = await fetch(`${AUTH_URL}/auth/store-login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ storeId: _selectedStore.id, pin }),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      _showError('storeLoginError', data.error || 'Login failed.');
+      document.getElementById('storePinInput').value = '';
+      _shake('storePinInput');
+      return;
+    }
+
+    Auth.login(data.token, { ...data.user, role: 'store', storeName: _selectedStore.name });
+    launchApp();
+  } catch (err) {
+    // Demo fallback — check demo PINs
+    const correct = DEMO_PINS[_selectedStore.id] || '0000';
+    if (pin !== correct) {
+      _showError('storeLoginError', `Incorrect PIN. Demo PIN for this store: ${correct}`);
+      document.getElementById('storePinInput').value = '';
+      return;
+    }
+    Auth.login('demo_store_token', { role: 'store', storeId: _selectedStore.id, storeName: _selectedStore.name, name: _selectedStore.name, profile: { name: _selectedStore.name } });
+    launchApp();
+  } finally {
+    _resetBtn(btn, 'Login to Dashboard');
+  }
+}
+
+// ─── STORE LOGIN (email+password — registered local stores) ───────────────
+async function loginStoreEmail() {
+  const email    = (document.getElementById('storeEmailInput')?.value    || '').trim();
+  const password = (document.getElementById('storePasswordInput')?.value || '').trim();
+  _hideError('storeEmailLoginError');
+
+  if (!email)    { _shake('storeEmailInput');    _showError('storeEmailLoginError', 'Email is required.'); return; }
+  if (!password) { _shake('storePasswordInput'); _showError('storeEmailLoginError', 'Password is required.'); return; }
+
+  const btn = document.getElementById('storeEmailLoginBtn');
+  _setBtnLoading(btn, 'Logging in…');
+
+  try {
+    const res  = await fetch(`${AUTH_URL}/auth/store-login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      _showError('storeEmailLoginError', data.error || 'Login failed.');
+      document.getElementById('storePasswordInput').value = '';
+      return;
+    }
+
+    Auth.login(data.token, { ...data.user, role: 'store' });
+    launchApp();
+  } catch (err) {
+    _showError('storeEmailLoginError', 'Auth server offline. Please start the auth server.');
+  } finally {
+    _resetBtn(btn, 'Login');
+  }
+}
+
+// ─── LOCAL STORE REGISTRATION ─────────────────────────────────────────────
+async function registerLocalStore() {
+  const fields = {
+    storeName: document.getElementById('regStoreName')?.value.trim(),
+    ownerName: document.getElementById('regOwnerName')?.value.trim(),
+    email:     document.getElementById('regEmail')?.value.trim(),
+    password:  document.getElementById('regPassword')?.value.trim(),
+    phone:     document.getElementById('regPhone')?.value.trim(),
+    licenseNo: document.getElementById('regLicense')?.value.trim(),
+    address:   document.getElementById('regAddress')?.value.trim(),
+    city:      document.getElementById('regCity')?.value.trim(),
+    pincode:   document.getElementById('regPincode')?.value.trim(),
+  };
+  _hideError('storeRegError');
+
+  const required = ['storeName','ownerName','email','password','phone','licenseNo','address','city','pincode'];
+  for (const f of required) {
+    if (!fields[f]) { _shake('reg' + f.charAt(0).toUpperCase() + f.slice(1)); _showError('storeRegError', `${f.replace(/([A-Z])/g,' $1')} is required.`); return; }
+  }
+  if (!/\S+@\S+\.\S+/.test(fields.email)) { _showError('storeRegError', 'Enter a valid email address.'); return; }
+  if (fields.password.length < 8 || !/[A-Z]/.test(fields.password) || !/[0-9]/.test(fields.password)) {
+    _showError('storeRegError', 'Password must be 8+ chars with at least one uppercase letter and one number.'); return;
+  }
+
+  const btn = document.getElementById('storeRegBtn');
+  _setBtnLoading(btn, 'Registering…');
+
+  try {
+    const res  = await fetch(`${AUTH_URL}/auth/store-register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(fields),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      const msg = data.errors ? data.errors.map(e => e.msg).join(' · ') : (data.error || 'Registration failed.');
+      _showError('storeRegError', msg);
+      return;
+    }
+
+    Auth.login(data.token, { ...data.user, role: 'store' });
+    showToast(`${fields.storeName} registered successfully!`, 'success', 4000);
+    launchApp();
+  } catch (err) {
+    // Demo fallback
+    _showError('storeRegError', 'Auth server offline — registering in demo mode.');
+    setTimeout(() => {
+      _hideError('storeRegError');
+      Auth.login('demo_local_store_token', { role: 'store', storeId: 'LOCAL_DEMO', storeName: fields.storeName, name: fields.storeName, profile: { name: fields.ownerName } });
+      showToast(`${fields.storeName} registered! (demo mode)`, 'success', 4000);
+      launchApp();
+    }, 1500);
+  } finally {
+    _resetBtn(btn, 'Register Pharmacy');
+  }
+}
+
+// ─── BTN HELPERS ───────────────────────────────────────────────────────────
+function _setBtnLoading(btn, text) {
+  if (!btn) return;
+  btn.dataset.origText = btn.textContent;
+  btn.textContent = text;
+  btn.disabled = true;
+}
+function _resetBtn(btn, fallbackText) {
+  if (!btn) return;
+  btn.textContent = btn.dataset.origText || fallbackText;
+  btn.disabled = false;
+}
+
+// ─── LOGOUT ────────────────────────────────────────────────────────────────
+function logout() {
+  Auth.logout();
+  document.getElementById('appContainer').style.display = 'none';
+  document.getElementById('loginPage').style.display    = 'flex';
+  closeProfilePopup();
+  closeProfileModal();
+  resetRole();
+  switchAuthTab('login');
+  // Reset form fields
+  ['loginEmail','loginPassword','signupName','signupEmail','signupPassword','storePinInput','storeEmailInput','storePasswordInput'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  ['userLoginBtn','signupBtn','storeLoginBtn','storeEmailLoginBtn','storeRegBtn'].forEach(id => {
+    const btn = document.getElementById(id); if (btn) { btn.disabled = false; }
+  });
+  closeAlertsPanel();
+  showToast('Logged out successfully.', 'success');
+}
+
+// ─── SHAKE ANIMATION ───────────────────────────────────────────────────────
+function _shake(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.style.animation = 'none';
+  void el.offsetHeight;
+  el.style.animation = 'shake 0.4s ease';
+}
+
+// ─── LAUNCH APP ─────────────────────────────────────────────────────────────
+function launchApp() {
+  document.getElementById('loginPage').style.display   = 'none';
+  document.getElementById('appContainer').style.display = 'flex';
+  const s = Auth.session();
+
+  const displayName = s?.profile?.name || s?.storeName || s?.name || s?.email?.split('@')[0] || 'User';
+  const initials = displayName.split(' ').map(w => w[0] || '').join('').substring(0, 2).toUpperCase() || 'U';
+  document.getElementById('profileAvatar').textContent = initials;
+  document.getElementById('profileName').textContent   = displayName.split(' - ')[0];
+  document.getElementById('profileRole').textContent   = Auth.isStore() ? 'Pharmacist' : 'Patient';
+
+  if (Auth.isStore()) {
+    document.getElementById('storeNav').style.display = 'block';
+    document.getElementById('userNav').style.display  = 'none';
+    document.querySelectorAll('.store-only-btn').forEach(b => b.style.display = 'flex');
+    activateSection('dashboard');
+    // Map storeId to a known pharmacyId for inventory, or default to PH001
+    if (!MOCK_DATA.pharmacies.find(p => p.id === Auth.phId())) {
+      Auth._s.storeId = 'PH001';
+    }
+    initDashboard();
+  } else {
+    document.getElementById('userNav').style.display  = 'block';
+    document.getElementById('storeNav').style.display = 'none';
+    document.querySelectorAll('.store-only-btn').forEach(b => b.style.display = 'none');
+    _setActive('user-dashboard');
+    activateSection('user-dashboard');
+    initUserDashboard();
+    renderGenericTable();
+  }
+  renderAlertsPanelContent();
+}
+
+// ─── PROFILE POPUP (sidebar) ───────────────────────────────────────────────
+function toggleProfilePopup() {
+  const popup = document.getElementById('profilePopup');
+  if (!popup) return;
+  const isOpen = popup.style.display !== 'none';
+  if (isOpen) closeProfilePopup();
+  else { popup.style.display = 'block'; }
+}
+function closeProfilePopup() {
+  const popup = document.getElementById('profilePopup');
+  if (popup) popup.style.display = 'none';
+}
+// Close popup on outside click
+document.addEventListener('click', e => {
+  const footer = document.querySelector('.sidebar-footer');
+  const popup  = document.getElementById('profilePopup');
+  if (popup && footer && !footer.contains(e.target)) closeProfilePopup();
+});
+
+// ─── PROFILE MODAL ─────────────────────────────────────────────────────────
+async function openProfileModal() {
+  document.getElementById('profileModal').classList.add('show');
+
+  // Populate from auth session (instant)
+  const s = Auth.session();
+  const p = s?.profile || {};
+  const displayName = p.name || s?.name || s?.email?.split('@')[0] || '—';
+  const email       = s?.email || '—';
+  const role        = Auth.isStore() ? 'Pharmacist' : 'Patient';
+  const initials    = displayName.split(' ').map(w => w[0] || '').join('').substring(0, 2).toUpperCase();
+
+  document.getElementById('pmAvatar').textContent   = initials;
+  document.getElementById('pmName').textContent     = displayName;
+  document.getElementById('pmEmail').textContent    = email;
+  document.getElementById('pmRolePill').textContent = role;
+  document.getElementById('profileModalSub').textContent = `${role} account — ${email}`;
+
+  _fillProfileFields(p, email);
+
+  // Fetch latest from server if online
+  if (Auth.token() && !Auth.token().startsWith('demo_')) {
+    try {
+      const res  = await fetch(`${AUTH_URL}/profile`, { headers: Auth.authHeader() });
+      const data = await res.json();
+      if (data.success && data.user?.profile) {
+        // Merge into session
+        Auth._s.profile = data.user.profile;
+        Auth._s.email   = data.user.email;
+        sessionStorage.setItem('ms_jwt', Auth._jwt); // keep token, update _s
+        _fillProfileFields(data.user.profile, data.user.email);
+        document.getElementById('pmName').textContent  = data.user.profile.name  || displayName;
+        document.getElementById('pmEmail').textContent = data.user.email || email;
+      }
+    } catch { /* offline — use cached */ }
+  }
+}
+
+function _fillProfileFields(p, email) {
+  const set = (id, val) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = val || '—';
+    el.className   = val ? 'pf-value' : 'pf-value empty';
+  };
+  set('pfName',      p.name);
+  set('pfPhone',     p.phone);
+  set('pfDob',       p.dob);
+  set('pfBlood',     p.bloodGroup);
+  set('pfGender',    p.gender);
+  set('pfEmail',     email);
+  set('pfAddress',   p.address);
+  set('pfCity',      p.city);
+  set('pfPincode',   p.pincode);
+  set('pfEmergency', p.emergencyContact);
+  set('pfAllergies', p.allergies);
+}
+
+function closeProfileModal() {
+  document.getElementById('profileModal')?.classList.remove('show');
+  cancelProfileEdit();
+}
+function handleProfileModalClick(e) {
+  if (e.target === document.getElementById('profileModal')) closeProfileModal();
+}
+
+function enableProfileEdit() {
+  const s = Auth.session();
+  const p = s?.profile || {};
+  document.getElementById('profileViewMode').style.display = 'none';
+  document.getElementById('profileEditMode').style.display = 'block';
+  // Pre-fill editable fields
+  const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+  setVal('editName',      p.name);
+  setVal('editPhone',     p.phone);
+  setVal('editDob',       p.dob);
+  setVal('editBlood',     p.bloodGroup);
+  setVal('editGender',    p.gender);
+  setVal('editEmergency', p.emergencyContact);
+  setVal('editAddress',   p.address);
+  setVal('editCity',      p.city);
+  setVal('editPincode',   p.pincode);
+  setVal('editAllergies', p.allergies);
+}
+
+function cancelProfileEdit() {
+  document.getElementById('profileViewMode').style.display = 'block';
+  document.getElementById('profileEditMode').style.display = 'none';
+  _hideError('profileSaveError');
+}
+
+async function saveProfile() {
+  const getVal = id => (document.getElementById(id)?.value || '').trim();
+  const payload = {
+    name:             getVal('editName'),
+    phone:            getVal('editPhone'),
+    dob:              getVal('editDob'),
+    bloodGroup:       getVal('editBlood'),
+    gender:           getVal('editGender'),
+    emergencyContact: getVal('editEmergency'),
+    address:          getVal('editAddress'),
+    city:             getVal('editCity'),
+    pincode:          getVal('editPincode'),
+    allergies:        getVal('editAllergies'),
+  };
+  _hideError('profileSaveError');
+
+  const btn = document.getElementById('profileSaveBtn');
+  _setBtnLoading(btn, 'Saving…');
+
+  try {
+    let savedProfile = payload;
+    if (Auth.token() && !Auth.token().startsWith('demo_')) {
+      const res  = await fetch(`${AUTH_URL}/profile`, {
+        method: 'PUT',
+        headers: Auth.authHeader(),
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        const msg = data.errors ? data.errors.map(e => e.msg).join(' · ') : (data.error || 'Save failed.');
+        _showError('profileSaveError', msg);
+        return;
+      }
+      savedProfile = data.user.profile || payload;
+    }
+
+    // Update local session
+    if (!Auth._s.profile) Auth._s.profile = {};
+    Object.assign(Auth._s.profile, savedProfile);
+
+    // Update sidebar name
+    const newName = payload.name || Auth._s.email?.split('@')[0] || 'User';
+    const initials = newName.split(' ').map(w => w[0] || '').join('').substring(0, 2).toUpperCase();
+    document.getElementById('profileAvatar').textContent = initials;
+    document.getElementById('profileName').textContent   = newName.split(' - ')[0];
+    document.getElementById('pmName').textContent        = newName;
+
+    _fillProfileFields(Auth._s.profile, Auth._s.email);
+    cancelProfileEdit();
+    showToast('Profile saved successfully.', 'success');
+  } catch (err) {
+    // Demo save
+    if (!Auth._s.profile) Auth._s.profile = {};
+    Object.assign(Auth._s.profile, payload);
+    const newName = payload.name || 'User';
+    document.getElementById('profileName').textContent = newName.split(' - ')[0];
+    document.getElementById('pmName').textContent      = newName;
+    document.getElementById('profileAvatar').textContent = newName.substring(0,2).toUpperCase();
+    _fillProfileFields(Auth._s.profile, Auth._s.email);
+    cancelProfileEdit();
+    showToast('Profile saved (demo mode).', 'success');
+  } finally {
+    _resetBtn(btn, 'Save Changes');
+  }
+}
+
+>>>>>>> main
 // ─── THEME ───────────────────────────────────────────────────────
 function _chartTheme(theme) {
   const dark = theme === 'dark';
@@ -1469,18 +2219,24 @@ document.addEventListener('DOMContentLoaded', () => {
   try {
     Auth.init();
     initTheme();
+
+    // ✅ FROM main: Handle OAuth redirect-back (Google / Microsoft)
+    _handleOAuthCallback();
+
+    // ✅ FROM HEAD: Backend health polling every 5 seconds
     checkBackend();
-    setInterval(checkBackend, 5000); // Check every 5s
-    
-    const storePin = document.getElementById('storePinInput');
-    if (storePin) storePin.addEventListener('keydown', e => { if(e.key==='Enter') loginStore(); });
-    
-    const userPhone = document.getElementById('userPhoneInput');
-    if (userPhone) userPhone.addEventListener('keydown', e => { if(e.key==='Enter') loginUser(); });
-    
+    setInterval(checkBackend, 5000);
+
+    // ✅ FROM main: Enter key shortcuts (email/password — matches resolved index.html)
+    document.getElementById('storePinInput')?.addEventListener('keydown',  e => { if (e.key === 'Enter') loginStore(); });
+    document.getElementById('loginEmail')?.addEventListener('keydown',     e => { if (e.key === 'Enter') loginUser(); });
+    document.getElementById('loginPassword')?.addEventListener('keydown',  e => { if (e.key === 'Enter') loginUser(); });
+
     if (Auth.isLoggedIn()) launchApp();
+
   } catch (err) {
-    console.error("App initialization failed:", err);
+    // ✅ FROM HEAD: Crash protection — prevents silent failures on init
+    console.error('App initialization failed:', err);
   }
 });
 

@@ -1,7 +1,8 @@
-const express = require('express');
+const express   = require('express');
 const { body, validationResult } = require('express-validator');
-const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+const jwt       = require('jsonwebtoken');
+const passport  = require('../middleware/passport');
+const User      = require('../models/User');
 const { authLimiter, signupLimiter } = require('../middleware/rateLimiter');
 
 const router = express.Router();
@@ -283,12 +284,69 @@ router.post(
   }
 );
 
-// ── OAUTH PLACEHOLDERS (Coming Soon) ─────────────────────
-router.get('/google', (req, res) => {
-  res.status(501).json({ success: false, error: 'Google OAuth coming soon. Please use email/password login.' });
-});
-router.get('/microsoft', (req, res) => {
-  res.status(501).json({ success: false, error: 'Microsoft OAuth coming soon. Please use email/password login.' });
-});
+// ── GOOGLE OAUTH ──────────────────────────────────────────
+// Step 1: Redirect user to Google consent screen
+router.get(
+  '/google',
+  passport.authenticate('google', { scope: ['profile', 'email'], session: false })
+);
+
+// Step 2: Google redirects back here with code
+router.get(
+  '/google/callback',
+  (req, res, next) => {
+    passport.authenticate('google', { session: false }, (err, user, info) => {
+      if (err) {
+        console.error('[Google OAuth Error]', err);
+        return res.redirect(`${process.env.FRONTEND_URL}?oauth_error=google_failed&reason=${encodeURIComponent(err.message || 'Unknown Error')}`);
+      }
+      if (!user) {
+        console.log('[Google Auth] No user returned:', info);
+        return res.redirect(`${process.env.FRONTEND_URL}?oauth_error=google_failed&reason=no_user`);
+      }
+      try {
+        console.log('[Google Auth] Issuing token for:', user.email);
+        const token = issueToken(user);
+        const redirectUrl = `${process.env.FRONTEND_URL}?oauth_token=${token}&provider=google`;
+        console.log('[Google Auth] Redirecting to:', redirectUrl);
+        res.redirect(redirectUrl);
+      } catch (issueErr) {
+        console.error('[Google Token Issue Error]', issueErr);
+        res.redirect(`${process.env.FRONTEND_URL}?oauth_error=google_failed&reason=token_issue_error`);
+      }
+    })(req, res, next);
+  }
+);
+
+// ── MICROSOFT OAUTH ───────────────────────────────────────
+// Step 1: Redirect user to Microsoft consent screen
+router.get(
+  '/microsoft',
+  passport.authenticate('microsoft', { session: false })
+);
+
+// Step 2: Microsoft redirects back here with code
+router.get(
+  '/microsoft/callback',
+  (req, res, next) => {
+    passport.authenticate('microsoft', { session: false }, (err, user, info) => {
+      if (err) {
+        console.error('[Microsoft OAuth Error]', err);
+        return res.redirect(`${process.env.FRONTEND_URL}?oauth_error=microsoft_failed&reason=${encodeURIComponent(err.message || 'Unknown Error')}`);
+      }
+      if (!user) {
+        console.log('[Microsoft Auth] No user returned:', info);
+        return res.redirect(`${process.env.FRONTEND_URL}?oauth_error=microsoft_failed&reason=no_user`);
+      }
+      try {
+        const token = issueToken(user);
+        res.redirect(`${process.env.FRONTEND_URL}?oauth_token=${token}&provider=microsoft`);
+      } catch (issueErr) {
+        console.error('[Microsoft Token Issue Error]', issueErr);
+        res.redirect(`${process.env.FRONTEND_URL}?oauth_error=microsoft_failed&reason=token_issue_error`);
+      }
+    })(req, res, next);
+  }
+);
 
 module.exports = router;
