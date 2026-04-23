@@ -5,6 +5,7 @@
 
 const charts = {};
 const API_BASE = 'http://localhost:5000/api';
+const AUTH_URL  = 'http://localhost:3001';      // Node.js auth server
 
 // ─── AUTH ────────────────────────────────────────────────────────
 const Auth = {
@@ -768,7 +769,6 @@ async function saveProfile() {
   }
 }
 
->>>>>>> main
 // ─── THEME ───────────────────────────────────────────────────────
 function _chartTheme(theme) {
   const dark = theme === 'dark';
@@ -814,102 +814,7 @@ function initTheme() {
   _chartTheme(t);
 }
 
-// ─── LOGIN ───────────────────────────────────────────────────────
-let _role = null;
 
-function selectRole(role) {
-  _role = role;
-  const id = role === 'store' ? 'storeLoginForm' : 'userLoginForm';
-  document.getElementById('roleSelector').style.display  = 'none';
-  const f = document.getElementById(id);
-  f.style.display = 'block';
-  f.classList.remove('slide-in');
-  void f.offsetWidth;
-  f.classList.add('slide-in');
-}
-
-function resetRole() {
-  _role = null;
-  document.getElementById('roleSelector').style.display    = 'flex';
-  document.getElementById('storeLoginForm').style.display  = 'none';
-  document.getElementById('userLoginForm').style.display   = 'none';
-}
-
-function loginStore() {
-  const pid = document.getElementById('storeSelect').value;
-  const pin = document.getElementById('storePinInput').value.trim();
-  if (!pid) { _shake('storeSelect'); showToast('Please select your pharmacy.','error'); return; }
-  if (!pin) { _shake('storePinInput'); showToast('Please enter your PIN.','error'); return; }
-  const acc = MOCK_DATA.storeAccounts.find(a => a.id === pid && a.pin === pin);
-  if (!acc)  { _shake('storePinInput'); document.getElementById('storePinInput').value = ''; showToast('Incorrect PIN. Please try again.','error'); return; }
-  const btn = document.getElementById('storeLoginBtn');
-  btn.textContent = 'Logging in...'; btn.disabled = true;
-  setTimeout(() => { Auth.login({ role:'store', pharmacyId:acc.id, name:acc.name }); launchApp(); }, 700);
-}
-
-function loginUser() {
-  const name  = document.getElementById('userNameInput').value.trim();
-  const phone = document.getElementById('userPhoneInput').value.trim();
-  if (!name)             { _shake('userNameInput');  showToast('Please enter your name.','error'); return; }
-  if (phone.length < 10) { _shake('userPhoneInput'); showToast('Enter a valid 10-digit number.','error'); return; }
-  const btn = document.getElementById('userLoginBtn');
-  btn.textContent = 'Signing in...'; btn.disabled = true;
-  setTimeout(() => { Auth.login({ role:'user', name, phone }); launchApp(); }, 700);
-}
-
-function logout() {
-  Auth.logout();
-  // Reset app visibility
-  document.getElementById('appContainer').style.display = 'none';
-  document.getElementById('loginPage').style.display    = 'flex';
-  resetRole();
-  // Reset store form
-  const sb = document.getElementById('storeLoginBtn'); if (sb) { sb.textContent = 'Login'; sb.disabled = false; }
-  const ub = document.getElementById('userLoginBtn');  if (ub) { ub.textContent = 'Continue'; ub.disabled = false; }
-  const pi = document.getElementById('storePinInput'); if (pi) pi.value = '';
-  // Hide nav panels
-  closeAlertsPanel();
-  showToast('Logged out successfully.','success');
-}
-
-function _shake(id) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.style.animation = 'none';
-  void el.offsetHeight;
-  el.style.animation = 'shake 0.4s ease';
-}
-
-function launchApp() {
-  document.getElementById('loginPage').style.display    = 'none';
-  document.getElementById('appContainer').style.display = 'flex';
-  const s = Auth.session();
-
-  // Profile strip
-  const initials = s.name.split(' ').map(w => w[0]).join('').substring(0,2).toUpperCase();
-  document.getElementById('profileAvatar').textContent = initials;
-  document.getElementById('profileName').textContent   = s.name.split(' - ')[0];
-  document.getElementById('profileRole').textContent   = Auth.isStore() ? 'Pharmacist' : 'Patient';
-
-  if (Auth.isStore()) {
-    document.getElementById('storeNav').style.display = 'block';
-    document.getElementById('userNav').style.display  = 'none';
-    document.querySelectorAll('.store-only-btn').forEach(b => b.style.display = 'flex');
-    activateSection('dashboard');
-    initDashboard();
-  } else {
-    document.getElementById('userNav').style.display  = 'block';
-    document.getElementById('storeNav').style.display = 'none';
-    document.querySelectorAll('.store-only-btn').forEach(b => b.style.display = 'none');
-    _setActive('user-dashboard');
-    activateSection('user-dashboard');
-    initUserDashboard();
-    renderGenericTable();
-  }
-  renderAlertsPanelContent();
-  updateTransferBadge();
-  updateAlertsBadge();
-}
 
 // ─── ALERTS PANEL ────────────────────────────────────────────────
 function toggleAlertsPanel() {
