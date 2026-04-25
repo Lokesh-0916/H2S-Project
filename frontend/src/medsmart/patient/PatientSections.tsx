@@ -184,7 +184,7 @@ export function MedicineSearch() {
               <div className="text-xs text-success mb-3" style={{ color: "var(--success)" }}>You save ₹{saved} per pack</div>
               <div className="flex gap-2">
                 <button onClick={() => buy(m, "generic")} className="flex-1 py-2 rounded-lg gradient-brand text-white text-sm font-medium">Buy generic</button>
-                <button onClick={() => buy(m, "brand")} className="px-3 py-2 rounded-lg border hover:bg-accent text-xs">Buy brand</button>
+                <button onClick={() => buy(m, "brand")} className="flex-1 py-2 rounded-lg border hover:bg-accent text-sm font-medium">Buy brand</button>
               </div>
             </Card>
           );
