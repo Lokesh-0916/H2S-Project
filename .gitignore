@@ -48,3 +48,11 @@ logs/
 *.pem
 *.key
 *.cert
+
+# ── Frontend build & generated tooling ────────────────────
+frontend/dist/
+frontend/.wrangler/
+frontend/.tanstack/
+frontend/bun.lockb
+frontend/bunfig.toml
+frontend/wrangler.jsonc

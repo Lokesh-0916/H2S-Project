@@ -8,17 +8,16 @@ echo ===================================================
 echo.
 
 :: Check for Node.js
-echo [1/4] Checking Node.js installation...
+echo [1/3] Checking Node.js...
 node --version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo [ERROR] Node.js not found! Please install Node.js and add it to your PATH.
-    pause
-    exit /b
+    echo [ERROR] Node.js not found! Please install it from https://nodejs.org
+    pause & exit /b
 )
-echo [OK] Node.js is installed.
+echo [OK] Node.js found.
 
 :: Check for Python
-echo [2/4] Checking Python installation...
+echo [2/3] Checking Python...
 set PY_CMD=python
 python --version >nul 2>&1
 if %errorlevel% neq 0 (
@@ -28,45 +27,34 @@ if %errorlevel% neq 0 (
         set PY_CMD=python3
         python3 --version >nul 2>&1
         if %errorlevel% neq 0 (
-            echo [ERROR] Python not found! Please install Python and add it to your PATH.
-            pause
-            exit /b
+            echo [ERROR] Python not found! Please install Python from https://python.org
+            pause & exit /b
         )
     )
 )
-echo [OK] Using command: %PY_CMD%
+echo [OK] Using: %PY_CMD%
 
-:: Start the Auth Server
-echo [3/4] Starting MedSmart Auth Server on port 3001...
-if exist auth-server (
-    start "MedSmart Auth Server" cmd /k "cd auth-server && npm install && npm start"
-) else (
-    echo [WARNING] auth-server directory not found!
-)
+echo [3/3] Starting all services...
 
-:: Start the Backend
-echo [4/4] Starting MedSmart Backend on port 5000...
-start "MedSmart Backend" cmd /k "cd backend && %PY_CMD% app.py"
+:: Auth Server (Node.js / Express)
+start "MedSmart — Auth Server" cmd /k "cd /d d:\H2S-Project\auth-server && npm install && node server.js"
 
-:: Wait for servers to warm up
-echo [WAIT] Giving servers 5 seconds to initialize...
-timeout /t 5 /nobreak > nul
+:: Backend (Python / Flask)
+start "MedSmart — Backend" cmd /k "cd /d d:\H2S-Project\backend && %PY_CMD% app.py"
 
-:: Open Frontend
-echo [LAUNCH] Launching MedSmart Website...
-if exist index.html (
-    start "" index.html
-) else (
-    echo [WARNING] index.html not found in current directory!
-)
+:: Give servers 4 seconds to init
+timeout /t 4 /nobreak >nul
+
+:: Frontend (Vite dev server)
+start "MedSmart — Frontend" cmd /k "cd /d d:\H2S-Project\frontend && npm install && npm run dev"
 
 echo.
 echo ===================================================
-echo   SUCCESS: System is now running!
+echo   SUCCESS: All services are starting!
 echo.
-echo   - Auth Server: Check the Node.js window
-echo   - Backend: Check the Python window
-echo   - Website: Opened in your browser
+echo   Auth Server  →  http://localhost:3001
+echo   Backend      →  http://localhost:5000
+echo   Frontend     →  http://localhost:8080
 echo ===================================================
 echo.
 pause
