@@ -23,7 +23,8 @@ router.put(
   requireAuth,
   [
     body('name').optional().trim().isLength({ min: 1, max: 80 }).escape(),
-    body('phone').optional().trim().isMobilePhone().withMessage('Invalid phone'),
+    body('phone').optional().trim(),
+    body('age').optional().isInt({ min: 1, max: 120 }).withMessage('Age must be between 1 and 120'),
     body('dob').optional().trim().escape(),
     body('bloodGroup').optional().trim().isIn(['A+','A-','B+','B-','AB+','AB-','O+','O-','']).withMessage('Invalid blood group'),
     body('address').optional().trim().isLength({ max: 200 }).escape(),
@@ -40,7 +41,7 @@ router.put(
     }
 
     // Only allow updating profile sub-fields (whitelist)
-    const allowed = ['name','phone','dob','bloodGroup','address','city','pincode','emergencyContact','gender','allergies'];
+    const allowed = ['name','phone','age','dob','bloodGroup','address','city','pincode','emergencyContact','gender','allergies'];
     const updates = {};
     for (const key of allowed) {
       if (req.body[key] !== undefined) {

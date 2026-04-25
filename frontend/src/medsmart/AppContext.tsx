@@ -86,11 +86,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const { user: dbUser } = await res.json();
         const merged: User = {
           ...base,
-          name:    dbUser.profile?.name || base.name,
-          phone:   dbUser.profile?.phone || base.phone,
+          name:    dbUser.profile?.name    || base.name,
+          phone:   dbUser.profile?.phone   || base.phone,
           address: dbUser.profile?.address || base.address,
-          gender:  dbUser.profile?.gender || base.gender,
-          pharmacyName: dbUser.storeName || base.pharmacyName,
+          gender:  dbUser.profile?.gender  || base.gender,
+          age:     dbUser.profile?.age     ?? base.age,
+          dob:     dbUser.profile?.dob     || base.dob,
+          pharmacyName: dbUser.storeName   || base.pharmacyName,
         };
         persistUser(merged);
       } else {

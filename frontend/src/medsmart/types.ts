@@ -8,6 +8,7 @@ export interface User {
   region?: string;
   phone?: string;
   age?: number;
+  dob?: string;   // Date of birth — ISO string e.g. "1998-04-25"
   gender?: string;
   address?: string;
   token?: string;   // JWT — used for authenticated API calls

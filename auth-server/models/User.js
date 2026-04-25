@@ -2,16 +2,17 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
 const profileSchema = new mongoose.Schema({
-  name:             { type: String, default: '' },
-  phone:            { type: String, default: '' },
-  dob:              { type: String, default: '' },
-  bloodGroup:       { type: String, default: '' },
-  address:          { type: String, default: '' },
-  city:             { type: String, default: '' },
-  pincode:          { type: String, default: '' },
-  emergencyContact: { type: String, default: '' },
-  gender:           { type: String, default: '' },
-  allergies:        { type: String, default: '' },
+  name:             { type: String,  default: '' },
+  phone:            { type: String,  default: '' },
+  age:              { type: Number,  default: null },
+  dob:              { type: String,  default: '' },
+  bloodGroup:       { type: String,  default: '' },
+  address:          { type: String,  default: '' },
+  city:             { type: String,  default: '' },
+  pincode:          { type: String,  default: '' },
+  emergencyContact: { type: String,  default: '' },
+  gender:           { type: String,  default: '' },
+  allergies:        { type: String,  default: '' },
 }, { _id: false });
 
 const userSchema = new mongoose.Schema({
