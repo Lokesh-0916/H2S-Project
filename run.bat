@@ -37,16 +37,16 @@ echo [OK] Using: %PY_CMD%
 echo [3/3] Starting all services...
 
 :: Auth Server (Node.js / Express)
-start "MedSmart — Auth Server" cmd /k "cd /d "%~dp0auth-server" && npm install && node server.js"
+start "MedSmart - Auth Server" cmd /k "cd /d "%~dp0auth-server" && npm install && node server.js"
 
 :: Backend (Python / Flask)
-start "MedSmart — Backend" cmd /k "cd /d "%~dp0backend" && %PY_CMD% app.py"
+start "MedSmart - Backend" cmd /k "cd /d "%~dp0backend" && %PY_CMD% app.py"
 
 :: Give servers 4 seconds to init
 timeout /t 4 /nobreak >nul
 
 :: Frontend (Vite dev server)
-start "MedSmart — Frontend" cmd /k "cd /d "%~dp0frontend" && npm install && npm run dev"
+start "MedSmart - Frontend" cmd /k "cd /d "%~dp0frontend" && npm install && npm run dev"
 
 echo.
 echo ===================================================
