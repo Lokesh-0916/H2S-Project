@@ -30,12 +30,16 @@ function ChartTooltip({ active, payload, label }: any) {
 
 export function StoreDashboard() {
   const [lowStock, setLowStock] = useState<any[]>([]);
+  const [liveTrend, setLiveTrend] = useState<any[]>(trendData);
+  const [liveDonut, setLiveDonut] = useState<any[]>(demandDonut);
 
   useEffect(() => {
     fetch(`${BACKEND_URL}/api/stock-alerts`)
-      .then(r => r.json())
-      .then(d => { if (d.alerts) setLowStock(d.alerts); })
-      .catch(() => {});
+      .then(r => r.json()).then(d => { if (d.alerts) setLowStock(d.alerts); }).catch(() => {});
+    fetch(`${BACKEND_URL}/api/trend-data`)
+      .then(r => r.json()).then(d => { if (Array.isArray(d) && d.length) setLiveTrend(d); }).catch(() => {});
+    fetch(`${BACKEND_URL}/api/demand-distribution`)
+      .then(r => r.json()).then(d => { if (Array.isArray(d) && d.length) setLiveDonut(d); }).catch(() => {});
   }, []);
 
   return (
@@ -59,15 +63,16 @@ export function StoreDashboard() {
           </div>
           <div className="h-72">
             <ResponsiveContainer>
-              <LineChart data={trendData}>
+              <LineChart data={liveTrend}>
                 <CartesianGrid stroke={gridColor} strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="day" stroke={axisColor} fontSize={12} tickLine={false} axisLine={false} />
                 <YAxis stroke={axisColor} fontSize={12} tickLine={false} axisLine={false} />
                 <Tooltip content={<ChartTooltip />} />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Line type="monotone" dataKey="flu" name="Influenza" stroke="var(--brand)" strokeWidth={2.5} dot={false} />
+                <Line type="monotone" dataKey="flu" name="Flu" stroke="var(--brand)" strokeWidth={2.5} dot={false} />
                 <Line type="monotone" dataKey="dengue" name="Dengue" stroke="var(--amber)" strokeWidth={2.5} dot={false} />
-                <Line type="monotone" dataKey="viral" name="Viral Fever" stroke="var(--teal)" strokeWidth={2.5} dot={false} />
+                <Line type="monotone" dataKey="malaria" name="Malaria" stroke="var(--teal)" strokeWidth={2.5} dot={false} />
+                <Line type="monotone" dataKey="cholera" name="Cholera" stroke="#a78bfa" strokeWidth={2} dot={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -79,15 +84,15 @@ export function StoreDashboard() {
           <div className="h-60">
             <ResponsiveContainer>
               <PieChart>
-                <Pie data={demandDonut} dataKey="value" innerRadius={50} outerRadius={80} paddingAngle={3}>
-                  {demandDonut.map((d, i) => <Cell key={i} fill={d.color} />)}
+                <Pie data={liveDonut} dataKey="value" innerRadius={50} outerRadius={80} paddingAngle={3}>
+                  {liveDonut.map((d, i) => <Cell key={i} fill={d.color} />)}
                 </Pie>
                 <Tooltip content={<ChartTooltip />} />
               </PieChart>
             </ResponsiveContainer>
           </div>
           <div className="space-y-1.5 mt-2">
-            {demandDonut.map(d => (
+            {liveDonut.map(d => (
               <div key={d.name} className="flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full" style={{ background: d.color }} />{d.name}</div>
                 <span className="font-medium">{d.value}%</span>
@@ -128,7 +133,20 @@ export function StoreDashboard() {
 export function DiseaseMonitor() {
   const { push } = useToast();
   const [reports, setReports] = useState<DiseaseReport[]>(initialDiseases);
+  const [liveTrend, setLiveTrend] = useState<any[]>(trendData);
   const [form, setForm] = useState({ disease: "", cases: "", source: "" });
+
+  useEffect(() => {
+    fetch(`${BACKEND_URL}/api/disease-reports`)
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d) && d.length) setReports(d); })
+      .catch(() => {});
+    fetch(`${BACKEND_URL}/api/trend-data`)
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d) && d.length) setLiveTrend(d); })
+      .catch(() => {});
+  }, []);
+
   function add() {
     if (!form.disease || !form.cases) return push("error", "Disease and case count required");
     const cases = parseInt(form.cases) || 0;
@@ -167,7 +185,7 @@ export function DiseaseMonitor() {
           <h3 className="font-display font-semibold mb-3">Case Growth Trend</h3>
           <div className="h-64">
             <ResponsiveContainer>
-              <LineChart data={trendData}>
+              <LineChart data={liveTrend}>
                 <CartesianGrid stroke={gridColor} strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="day" stroke={axisColor} fontSize={12} tickLine={false} axisLine={false} />
                 <YAxis stroke={axisColor} fontSize={12} tickLine={false} axisLine={false} />
@@ -335,25 +353,47 @@ export function DemandForecast() {
 }
 
 export function AISuggestions() {
-  const recs = [
-    { id: 1, name: "Azithromycin 500mg", urgency: 92, qty: 120, reason: "Influenza cases up 18%; predicted demand exceeds current threshold by 65%." },
-    { id: 2, name: "Paracetamol 500mg", urgency: 84, qty: 250, reason: "Viral fever uptrend + consistent baseline demand from regular customers." },
-    { id: 3, name: "Pantoprazole 40mg", urgency: 71, qty: 80, reason: "Seasonal spike in gastric complaints reported across nearby clinics." },
-    { id: 4, name: "Cetirizine 10mg", urgency: 58, qty: 60, reason: "Allergy season approaching; mild upward trend in OTC searches." },
-  ];
-  const purchaseTrend = [
+  const [recs, setRecs] = useState<any[]>([]);
+  const [stats, setStats] = useState({ trend: "Loading", velocity: "…", criticalItems: 0, confidence: 94 });
+  const [purchaseTrend, setPurchaseTrend] = useState([
     { m: "Jan", v: 320 }, { m: "Feb", v: 380 }, { m: "Mar", v: 430 }, { m: "Apr", v: 510 }, { m: "May", v: 600 },
-  ];
+  ]);
+
+  useEffect(() => {
+    fetch(`${BACKEND_URL}/api/ai-suggestions`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.suggestions) setRecs(d.suggestions);
+        if (d.stats)       setStats(d.stats);
+      })
+      .catch(() => {});
+    // Build purchase trend from purchases collection
+    fetch(`${BACKEND_URL}/api/purchases`)
+      .then(r => r.json())
+      .then((data: any[]) => {
+        if (!Array.isArray(data) || data.length === 0) return;
+        // Count by month
+        const byMonth: Record<string, number> = {};
+        data.forEach(p => {
+          const month = new Date(p.date).toLocaleString("default", { month: "short" });
+          byMonth[month] = (byMonth[month] || 0) + p.price;
+        });
+        const trend = Object.entries(byMonth).map(([m, v]) => ({ m, v }));
+        if (trend.length > 0) setPurchaseTrend(trend);
+      })
+      .catch(() => {});
+  }, []);
+
   return (
     <div className="space-y-6">
       <SectionHeader title="AI Restock Recommendations" subtitle="Intelligent suggestions based on real-time signals" />
       <Card className="!p-0 overflow-hidden">
         <div className="grid sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x">
           {[
-            { l: "Trend", v: "Rising", c: "amber" },
-            { l: "Velocity", v: "+22%/wk", c: "brand" },
-            { l: "Critical items", v: "6", c: "danger" },
-            { l: "AI confidence", v: "94%", c: "success" },
+            { l: "Trend",         v: stats.trend,              c: "amber" },
+            { l: "Velocity",      v: stats.velocity,           c: "brand" },
+            { l: "Critical items",v: String(stats.criticalItems), c: "danger" },
+            { l: "AI confidence", v: `${stats.confidence}%`,   c: "success" },
           ].map(s => (
             <div key={s.l} className="p-4">
               <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{s.l}</div>
@@ -364,6 +404,7 @@ export function AISuggestions() {
       </Card>
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-3">
+          {recs.length === 0 && <p className="text-sm text-muted-foreground">Loading AI recommendations…</p>}
           {recs.map(r => (
             <motion.div key={r.id} whileHover={{ y: -2 }} className="glass rounded-2xl p-4">
               <div className="flex items-start gap-4">
@@ -752,24 +793,56 @@ export function AutoRedistribute() {
 }
 
 export function Analytics() {
-  const [topMeds, setTopMeds] = useState(medicines.slice(0, 6).map(m => ({ name: m.generic, demand: 50 + Math.floor(Math.random() * 200) })));
-  const inventoryHealth = pharmacies.map(p => ({ name: p.name.split(" - ")[0] || p.name, health: 60 + Math.floor(Math.random() * 35) }));
+  const [topMeds, setTopMeds] = useState(medicines.slice(0, 6).map(m => ({ name: m.generic, demand: 50 })));
+  const [liveTrend, setLiveTrend] = useState<any[]>(trendData);
+  const [adoption, setAdoption] = useState([
+    { name: "Generic", value: 62, color: "var(--brand)" },
+    { name: "Brand",   value: 38, color: "var(--amber)" },
+  ]);
+  const [inventoryHealth, setInventoryHealth] = useState<any[]>(
+    pharmacies.map(p => ({ name: p.name.split(" - ")[0] || p.name, health: 70 }))
+  );
 
   useEffect(() => {
+    // Live medicines demand (price savings as proxy)
     fetch(`${BACKEND_URL}/api/all-generics`)
       .then(r => r.json())
       .then((data: any[]) => {
-        if (Array.isArray(data) && data.length > 0) {
-          setTopMeds(data.slice(0, 6).map(m => ({ name: m.generic || m.brand, demand: m.brandPrice - m.genericPrice + Math.floor(Math.random() * 50) })));
-        }
-      })
-      .catch(() => {});
+        if (Array.isArray(data) && data.length > 0)
+          setTopMeds(data.slice(0, 6).map(m => ({ name: m.generic || m.brand, demand: m.brandPrice - m.genericPrice })));
+      }).catch(() => {});
+
+    // Live 7-day trend
+    fetch(`${BACKEND_URL}/api/trend-data`)
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d) && d.length) setLiveTrend(d); }).catch(() => {});
+
+    // Live generic vs brand adoption
+    fetch(`${BACKEND_URL}/api/adoption-stats`)
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d) && d.length) setAdoption(d); }).catch(() => {});
+
+    // Compute inventory health per pharmacy from stock-alerts
+    fetch(`${BACKEND_URL}/api/stock-alerts`)
+      .then(r => r.json())
+      .then((d: any) => {
+        if (!d.alerts) return;
+        const byPharmacy: Record<string, { total: number; sum: number }> = {};
+        d.alerts.forEach((a: any) => {
+          const name = (a.pharmacy || "Unknown").split(" - ")[0];
+          if (!byPharmacy[name]) byPharmacy[name] = { total: 0, sum: 0 };
+          byPharmacy[name].total++;
+          byPharmacy[name].sum += Math.min(100, (a.stock / a.threshold) * 100);
+        });
+        const health = Object.entries(byPharmacy).map(([name, v]) => ({
+          name,
+          health: Math.round(v.sum / v.total),
+        }));
+        if (health.length > 0) setInventoryHealth(health);
+      }).catch(() => {});
   }, []);
 
-  const adoption = [
-    { name: "Generic", value: 62, color: "var(--brand)" },
-    { name: "Brand", value: 38, color: "var(--amber)" },
-  ];
+
   return (
     <div className="space-y-6">
       <SectionHeader title="Performance analytics" />
@@ -778,14 +851,14 @@ export function Analytics() {
           <h3 className="font-display font-semibold mb-3">Disease trend</h3>
           <div className="h-60">
             <ResponsiveContainer>
-              <LineChart data={trendData}>
+              <LineChart data={liveTrend}>
                 <CartesianGrid stroke={gridColor} strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="day" stroke={axisColor} fontSize={11} tickLine={false} axisLine={false} />
                 <YAxis stroke={axisColor} fontSize={11} tickLine={false} axisLine={false} />
                 <Tooltip content={<ChartTooltip />} />
-                <Line type="monotone" dataKey="flu" stroke="var(--brand)" strokeWidth={2.5} dot={false} />
-                <Line type="monotone" dataKey="viral" stroke="var(--teal)" strokeWidth={2.5} dot={false} />
-                <Line type="monotone" dataKey="dengue" stroke="var(--amber)" strokeWidth={2.5} dot={false} />
+                <Line type="monotone" dataKey="flu"     stroke="var(--brand)" strokeWidth={2.5} dot={false} />
+                <Line type="monotone" dataKey="dengue"  stroke="var(--amber)" strokeWidth={2.5} dot={false} />
+                <Line type="monotone" dataKey="malaria" stroke="var(--teal)"  strokeWidth={2.5} dot={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>

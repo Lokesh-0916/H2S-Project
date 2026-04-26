@@ -4,12 +4,34 @@ import { Heart, Search as SearchIcon, ShoppingBag, Wallet, Bell, Sparkles, Arrow
 import { Card, StatCard, Badge, SectionHeader } from "../shared/ui";
 import { useToast } from "../shared/Toast";
 import { useApp } from "../AppContext";
-import { medicines, alerts, purchases, diseaseReports } from "../data";
+import { medicines, alerts as staticAlerts, purchases as staticPurchases, diseaseReports as staticDiseaseReports } from "../data";
 import { cn } from "@/lib/utils";
+
+const BACKEND_URL = "http://localhost:5000";
+
+// Shared live-data hook
+function useLivePatientData() {
+  const [liveAlerts, setLiveAlerts]           = useState(staticAlerts);
+  const [livePurchases, setLivePurchases]     = useState(staticPurchases);
+  const [liveDiseases, setLiveDiseases]       = useState(staticDiseaseReports);
+
+  useEffect(() => {
+    fetch(`${BACKEND_URL}/api/patient-alerts`)
+      .then(r => r.json()).then(d => { if (Array.isArray(d) && d.length) setLiveAlerts(d); }).catch(() => {});
+    fetch(`${BACKEND_URL}/api/purchases`)
+      .then(r => r.json()).then(d => { if (Array.isArray(d) && d.length) setLivePurchases(d); }).catch(() => {});
+    fetch(`${BACKEND_URL}/api/disease-reports`)
+      .then(r => r.json()).then(d => { if (Array.isArray(d) && d.length) setLiveDiseases(d); }).catch(() => {});
+  }, []);
+
+  return { liveAlerts, livePurchases, liveDiseases };
+}
+
 
 export function PatientDashboard({ go }: { go: (s: string) => void }) {
   const { user } = useApp();
-  const totalSaved = purchases.reduce((s, p) => s + p.saved, 0);
+  const { liveAlerts, livePurchases } = useLivePatientData();
+  const totalSaved = livePurchases.reduce((s: number, p: any) => s + (p.saved || 0), 0);
   return (
     <div className="space-y-6">
       <Card className="!p-6 relative overflow-hidden">
@@ -28,8 +50,8 @@ export function PatientDashboard({ go }: { go: (s: string) => void }) {
       </Card>
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         <StatCard label="Total Savings" value={`₹${totalSaved}`} accent="success" icon={<Wallet className="w-5 h-5" />} delta="↑ 24% vs last month" />
-        <StatCard label="Purchases" value={purchases.length} accent="brand" icon={<ShoppingBag className="w-5 h-5" />} />
-        <StatCard label="Active Alerts" value={alerts.length} accent="amber" icon={<Bell className="w-5 h-5" />} />
+        <StatCard label="Purchases" value={livePurchases.length} accent="brand" icon={<ShoppingBag className="w-5 h-5" />} />
+        <StatCard label="Active Alerts" value={liveAlerts.length} accent="amber" icon={<Bell className="w-5 h-5" />} />
       </div>
       <div className="grid lg:grid-cols-2 gap-6">
         <Card>
@@ -38,7 +60,7 @@ export function PatientDashboard({ go }: { go: (s: string) => void }) {
             <button onClick={() => go("alerts")} className="text-xs text-brand hover:underline">View all →</button>
           </div>
           <div className="space-y-2">
-            {alerts.map(a => (
+            {liveAlerts.slice(0, 3).map((a: any) => (
               <div key={a.id} className="p-3 rounded-xl border bg-card/40 flex items-start gap-3">
                 <span className="w-2 h-2 rounded-full mt-2" style={{ background: a.severity === "high" ? "var(--danger)" : a.severity === "medium" ? "var(--amber)" : "var(--info)" }} />
                 <div className="flex-1 min-w-0">
@@ -75,11 +97,12 @@ function ActionTile({ icon, title, subtitle, onClick }: { icon: React.ReactNode;
 }
 
 export function HealthAlerts() {
+  const { liveAlerts, liveDiseases } = useLivePatientData();
   return (
     <div className="space-y-6">
       <SectionHeader title="Local health intelligence" subtitle="What's happening in your zone right now" />
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {alerts.map(a => (
+        {liveAlerts.map((a: any) => (
           <Card key={a.id}>
             <div className="flex items-center justify-between mb-2">
               <Badge variant={a.severity === "high" ? "danger" : a.severity === "medium" ? "amber" : "info"}>{a.severity}</Badge>
@@ -94,7 +117,7 @@ export function HealthAlerts() {
         <Card className="lg:col-span-2">
           <h3 className="font-display font-semibold mb-3">Local disease activity</h3>
           <div className="space-y-2">
-            {diseaseReports.map(r => (
+            {liveDiseases.map((r: any) => (
               <div key={r.id} className="p-3 rounded-xl border bg-card/40 flex items-center justify-between gap-3 flex-wrap">
                 <div>
                   <div className="font-medium">{r.disease}</div>
@@ -127,7 +150,7 @@ export function HealthAlerts() {
   );
 }
 
-const BACKEND_URL = "http://localhost:5000";
+
 
 export function MedicineSearch() {
   const { push } = useToast();
@@ -305,16 +328,17 @@ export function MedicineSearch() {
 }
 
 export function PurchaseHistory() {
-  const totalSaved = purchases.reduce((s, p) => s + p.saved, 0);
-  const totalSpent = purchases.reduce((s, p) => s + p.price, 0);
-  const genericCount = purchases.filter(p => p.type === "generic").length;
-  const adoption = Math.round((genericCount / purchases.length) * 100);
+  const { livePurchases } = useLivePatientData();
+  const totalSaved = livePurchases.reduce((s: number, p: any) => s + (p.saved || 0), 0);
+  const totalSpent = livePurchases.reduce((s: number, p: any) => s + (p.price || 0), 0);
+  const genericCount = livePurchases.filter((p: any) => p.type === "generic").length;
+  const adoption = livePurchases.length ? Math.round((genericCount / livePurchases.length) * 100) : 0;
   return (
     <div className="space-y-6">
       <SectionHeader title="Your purchase journey" subtitle="A record of every purchase and saving" />
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         <StatCard label="Total Saved" value={`₹${totalSaved}`} accent="success" icon={<Wallet className="w-5 h-5" />} />
-        <StatCard label="Total Purchases" value={purchases.length} accent="brand" icon={<ShoppingBag className="w-5 h-5" />} />
+        <StatCard label="Total Purchases" value={livePurchases.length} accent="brand" icon={<ShoppingBag className="w-5 h-5" />} />
         <StatCard label="Generic Adoption" value={`${adoption}%`} accent="teal" icon={<Sparkles className="w-5 h-5" />} delta={`Spent ₹${totalSpent}`} />
       </div>
       <Card className="!p-0 overflow-hidden">
@@ -331,7 +355,7 @@ export function PurchaseHistory() {
               </tr>
             </thead>
             <tbody>
-              {purchases.map(p => (
+              {livePurchases.map((p: any) => (
                 <tr key={p.id} className="border-t hover:bg-accent/30 transition">
                   <td className="px-4 py-3 text-muted-foreground tabular-nums">{p.date}</td>
                   <td className="px-4 py-3 font-medium">{p.medicine}</td>
