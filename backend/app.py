@@ -22,21 +22,21 @@ diseases_col = db["diseases"]
 
 # ─── MASTER DATA (Initial Lists for Seeding) ──────────────────────
 GENERIC_MAP = [
-    {"brand": "Crocin",      "generic": "Paracetamol",              "salt": "Paracetamol 500mg",                    "brandPrice": 50,  "genericPrice": 15},
-    {"brand": "Disprin",     "generic": "Aspirin",                  "salt": "Aspirin 350mg",                        "brandPrice": 40,  "genericPrice": 10},
-    {"brand": "Combiflam",   "generic": "Ibuprofen + Paracetamol",  "salt": "Ibuprofen 400mg + Paracetamol 325mg",  "brandPrice": 75,  "genericPrice": 22},
-    {"brand": "Dolo 650",    "generic": "Paracetamol 650mg",        "salt": "Paracetamol 650mg",                    "brandPrice": 65,  "genericPrice": 18},
-    {"brand": "Mox 500",     "generic": "Amoxicillin",              "salt": "Amoxicillin 500mg",                    "brandPrice": 120, "genericPrice": 35},
-    {"brand": "Augmentin",   "generic": "Amoxicillin + Clavulanate","salt": "Amoxicillin 625mg",                    "brandPrice": 240, "genericPrice": 65},
-    {"brand": "Cetrizine",   "generic": "Cetirizine HCl",           "salt": "Cetirizine 10mg",                      "brandPrice": 55,  "genericPrice": 12},
-    {"brand": "Allegra",     "generic": "Fexofenadine",             "salt": "Fexofenadine 120mg",                   "brandPrice": 130, "genericPrice": 38},
-    {"brand": "Pantop 40",   "generic": "Pantoprazole",             "salt": "Pantoprazole 40mg",                    "brandPrice": 95,  "genericPrice": 25},
-    {"brand": "Azithral",    "generic": "Azithromycin",             "salt": "Azithromycin 500mg",                   "brandPrice": 160, "genericPrice": 42},
-    {"brand": "Omez",        "generic": "Omeprazole",               "salt": "Omeprazole 20mg",                      "brandPrice": 80,  "genericPrice": 18},
-    {"brand": "Metformin",   "generic": "Metformin",                "salt": "Metformin 500mg",                      "brandPrice": 90,  "genericPrice": 20},
-    {"brand": "Ecosprin",    "generic": "Aspirin 75",               "salt": "Aspirin 75mg",                         "brandPrice": 45,  "genericPrice": 8},
-    {"brand": "Atorva",      "generic": "Atorvastatin",             "salt": "Atorvastatin 10mg",                    "brandPrice": 110, "genericPrice": 28},
-    {"brand": "Clavam",      "generic": "Co-Amoxiclav",             "salt": "Amoxicillin + Clavulanate",            "brandPrice": 195, "genericPrice": 55},
+    {"brand": "Crocin",      "generic": "Paracetamol",              "salt": "Paracetamol 500mg",                    "brandPrice": 50,  "genericPrice": 15, "category": "Analgesic",      "composition": "Paracetamol 500mg"},
+    {"brand": "Disprin",     "generic": "Aspirin",                  "salt": "Aspirin 350mg",                        "brandPrice": 40,  "genericPrice": 10, "category": "Analgesic",      "composition": "Aspirin 350mg"},
+    {"brand": "Combiflam",   "generic": "Ibuprofen + Paracetamol",  "salt": "Ibuprofen 400mg + Paracetamol 325mg",  "brandPrice": 75,  "genericPrice": 22, "category": "Analgesic",      "composition": "Ibuprofen 400mg + Paracetamol 325mg"},
+    {"brand": "Dolo 650",    "generic": "Paracetamol 650mg",        "salt": "Paracetamol 650mg",                    "brandPrice": 65,  "genericPrice": 18, "category": "Analgesic",      "composition": "Paracetamol 650mg"},
+    {"brand": "Mox 500",     "generic": "Amoxicillin",              "salt": "Amoxicillin 500mg",                    "brandPrice": 120, "genericPrice": 35, "category": "Antibiotic",     "composition": "Amoxicillin 500mg"},
+    {"brand": "Augmentin",   "generic": "Amoxicillin + Clavulanate","salt": "Amoxicillin 625mg",                    "brandPrice": 240, "genericPrice": 65, "category": "Antibiotic",     "composition": "Amoxicillin 500mg + Clavulanate 125mg"},
+    {"brand": "Cetrizine",   "generic": "Cetirizine HCl",           "salt": "Cetirizine 10mg",                      "brandPrice": 55,  "genericPrice": 12, "category": "Antihistamine",  "composition": "Cetirizine Hydrochloride 10mg"},
+    {"brand": "Allegra",     "generic": "Fexofenadine",             "salt": "Fexofenadine 120mg",                   "brandPrice": 130, "genericPrice": 38, "category": "Antihistamine",  "composition": "Fexofenadine Hydrochloride 120mg"},
+    {"brand": "Pantop 40",   "generic": "Pantoprazole",             "salt": "Pantoprazole 40mg",                    "brandPrice": 95,  "genericPrice": 25, "category": "Antacid",        "composition": "Pantoprazole Sodium 40mg"},
+    {"brand": "Azithral",    "generic": "Azithromycin",             "salt": "Azithromycin 500mg",                   "brandPrice": 160, "genericPrice": 42, "category": "Antibiotic",     "composition": "Azithromycin 500mg"},
+    {"brand": "Omez",        "generic": "Omeprazole",               "salt": "Omeprazole 20mg",                      "brandPrice": 80,  "genericPrice": 18, "category": "Antacid",        "composition": "Omeprazole 20mg"},
+    {"brand": "Metformin",   "generic": "Metformin",                "salt": "Metformin 500mg",                      "brandPrice": 90,  "genericPrice": 20, "category": "Diabetes",       "composition": "Metformin Hydrochloride 500mg"},
+    {"brand": "Ecosprin",    "generic": "Aspirin 75",               "salt": "Aspirin 75mg",                         "brandPrice": 45,  "genericPrice": 8,  "category": "Cardiac",        "composition": "Aspirin 75mg"},
+    {"brand": "Atorva",      "generic": "Atorvastatin",             "salt": "Atorvastatin 10mg",                    "brandPrice": 110, "genericPrice": 28, "category": "Cardiac",        "composition": "Atorvastatin Calcium 10mg"},
+    {"brand": "Clavam",      "generic": "Co-Amoxiclav",             "salt": "Amoxicillin + Clavulanate",            "brandPrice": 195, "genericPrice": 55, "category": "Antibiotic",     "composition": "Amoxicillin 875mg + Clavulanate 125mg"},
 ]
 
 DISEASE_DEMAND = {
