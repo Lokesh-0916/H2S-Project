@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 
 const axisColor = "color-mix(in oklab, var(--foreground) 50%, transparent)";
 const gridColor = "color-mix(in oklab, var(--foreground) 10%, transparent)";
+const BACKEND_URL = "http://localhost:5000";
 
 function ChartTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
@@ -192,7 +193,6 @@ export function DiseaseMonitor() {
   );
 }
 
-const BACKEND_URL = "http://localhost:5000";
 
 export function DemandForecast() {
   const { push } = useToast();
