@@ -143,7 +143,6 @@ export function MedicineSearch() {
       .then(r => r.json())
       .then(data => {
         if (Array.isArray(data) && data.length > 0) {
-          // Map backend fields to frontend Medicine type
           const mapped = data.map((m: any, i: number) => ({
             id: String(i + 1),
             name: m.generic || m.brand,
@@ -152,14 +151,12 @@ export function MedicineSearch() {
             category: m.category || "General",
             brandPrice: m.brandPrice,
             genericPrice: m.genericPrice,
-            composition: m.salt || m.generic,
+            composition: m.composition || m.salt || m.generic, // prefer enriched field
           }));
           setDbMeds(mapped);
         }
       })
-      .catch(() => {
-        // Backend offline — use static data silently
-      })
+      .catch(() => { /* backend offline — use static data silently */ })
       .finally(() => setLoadingMeds(false));
   }, []);
 
