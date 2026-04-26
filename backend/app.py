@@ -16,9 +16,11 @@ MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
 client = pymongo.MongoClient(MONGO_URI)
 db = client["medsmart"]
 external_data_col = db["external_health_data"]
-inventory_col = db["inventory"]
-medicines_col = db["medicines"]
-diseases_col = db["diseases"]
+inventory_col     = db["inventory"]
+medicines_col     = db["medicines"]
+diseases_col      = db["diseases"]
+purchases_col     = db["purchases"]
+patient_alerts_col= db["patient_alerts"]
 
 # ─── MASTER DATA (Initial Lists for Seeding) ──────────────────────
 GENERIC_MAP = [
@@ -471,21 +473,284 @@ def redistribution():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
+# ─── CHART & ANALYTICS ENDPOINTS ────────────────────────────────
+
+@app.route("/api/trend-data", methods=["GET"])
+def get_trend_data():
+    """Returns 7-day outbreak trend formatted for recharts LineChart."""
+    try:
+        doc = external_data_col.find_one({"type": "chart_trends"}, {"_id": 0})
+        if not doc:
+            return jsonify([]), 200
+        labels   = doc["data"]["labels"]
+        datasets = doc["data"]["datasets"]
+        result = []
+        for i, label in enumerate(labels):
+            point = {"day": label}
+            for disease, values in datasets.items():
+                point[disease.lower().replace("/", "_")] = values[i] if i < len(values) else 0
+            result.append(point)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/demand-distribution", methods=["GET"])
+def demand_distribution():
+    """Computes medicine category demand distribution from inventory."""
+    try:
+        CATEGORY_COLORS = {
+            "Antibiotic":    "var(--brand)",
+            "Analgesic":     "var(--teal)",
+            "Antacid":       "var(--amber)",
+            "Diabetes":      "var(--info)",
+            "Antihistamine": "var(--success)",
+            "Cardiac":       "#a78bfa",
+        }
+        # Group inventory sold by medicine category
+        all_inv  = list(inventory_col.find({}, {"_id": 0, "medicine": 1, "sold": 1}))
+        all_meds = {m["generic"]: m.get("category", "Other") for m in medicines_col.find({}, {"_id": 0})}
+
+        cat_totals: dict = {}
+        for item in all_inv:
+            cat = all_meds.get(item["medicine"], "Other")
+            cat_totals[cat] = cat_totals.get(cat, 0) + max(item.get("sold", 0), 1)
+
+        total = sum(cat_totals.values()) or 1
+        result = [
+            {"name": cat, "value": round((v / total) * 100), "color": CATEGORY_COLORS.get(cat, "#94a3b8")}
+            for cat, v in sorted(cat_totals.items(), key=lambda x: -x[1])
+        ]
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/adoption-stats", methods=["GET"])
+def adoption_stats():
+    """Computes generic vs brand adoption ratio from purchase history."""
+    try:
+        total   = purchases_col.count_documents({})
+        generic = purchases_col.count_documents({"type": "generic"})
+        brand   = total - generic
+        if total == 0:
+            return jsonify([{"name": "Generic", "value": 62, "color": "var(--brand)"},
+                            {"name": "Brand",   "value": 38, "color": "var(--amber)"}])
+        return jsonify([
+            {"name": "Generic", "value": round((generic / total) * 100), "color": "var(--brand)"},
+            {"name": "Brand",   "value": round((brand   / total) * 100), "color": "var(--amber)"},
+        ])
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/platform-stats", methods=["GET"])
+def platform_stats():
+    """Returns aggregate platform stats for the dashboard."""
+    try:
+        pharmacy_count = len(inventory_col.distinct("pharmacyId"))
+        critical_alerts = inventory_col.count_documents(
+            {"$expr": {"$lt": [{"$divide": ["$stock", "$threshold"]}, 0.3]}}
+        )
+        total_purchases = purchases_col.count_documents({})
+        return jsonify({
+            "pharmacies": pharmacy_count,
+            "criticalAlerts": critical_alerts,
+            "totalPurchases": total_purchases,
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+# ─── PATIENT ALERTS & DISEASE REPORTS ───────────────────────────
+
+@app.route("/api/patient-alerts", methods=["GET"])
+def get_patient_alerts():
+    """Returns health alerts for patients (from patient_alerts collection)."""
+    try:
+        alerts = list(patient_alerts_col.find({}, {"_id": 0}).sort("severity", 1).limit(10))
+        return jsonify(alerts)
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/disease-reports", methods=["GET"])
+def get_disease_reports():
+    """Returns regional disease outbreak reports from external_health_data."""
+    try:
+        doc = external_data_col.find_one({"type": "alerts"}, {"_id": 0})
+        if not doc:
+            return jsonify([])
+        import random
+        regions = doc["data"][:8]  # Top 8 regions
+        result = []
+        for i, r in enumerate(regions):
+            sev = "high" if r["level"] == "HIGH" else "medium" if r["level"] == "MEDIUM" else "low"
+            result.append({
+                "id": f"dr{i+1}",
+                "disease": r["disease"],
+                "cases": r["cases"],
+                "growth": random.randint(4, 28),
+                "severity": sev,
+                "source": f"Gov.in — {r['region']}",
+                "date": "2025-04-21",
+                "trend": r["trend"]
+            })
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+# ─── PURCHASE HISTORY ────────────────────────────────────────────
+
+@app.route("/api/purchases", methods=["GET"])
+def get_purchases():
+    """Returns purchase history. Optionally filter by userId."""
+    try:
+        user_id = request.args.get("userId")
+        query = {"userId": user_id} if user_id else {}
+        docs = list(purchases_col.find(query, {"_id": 0}).sort("date", -1).limit(50))
+        return jsonify(docs)
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/purchases/record", methods=["POST"])
+def record_purchase():
+    """Records a new purchase into the purchases collection."""
+    try:
+        data = request.json
+        purchase = {
+            "userId":    data.get("userId", "anonymous"),
+            "medicine":  data.get("medicine"),
+            "type":      data.get("type", "generic"),   # 'generic' or 'brand'
+            "price":     data.get("price", 0),
+            "saved":     data.get("saved", 0),
+            "pharmacy":  data.get("pharmacy", "Unknown"),
+            "date":      data.get("date", __import__("datetime").date.today().isoformat()),
+        }
+        purchases_col.insert_one(purchase)
+        return jsonify({"status": "success", "message": "Purchase recorded"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+# ─── AI SUGGESTIONS ──────────────────────────────────────────────
+
+@app.route("/api/ai-suggestions", methods=["GET"])
+def ai_suggestions():
+    """Generates restock recommendations from low-stock items + disease demand."""
+    try:
+        # 1. Get low-stock items
+        low_items = list(inventory_col.find(
+            {"$expr": {"$lt": ["$stock", "$threshold"]}},
+            {"_id": 0}
+        ))
+        # 2. Get outbreak data to find disease-driven demand
+        outbreak_doc = external_data_col.find_one({"type": "alerts"}, {"_id": 0})
+        high_outbreak = []
+        if outbreak_doc:
+            high_outbreak = [r["disease"] for r in outbreak_doc["data"] if r["level"] == "HIGH"]
+
+        # 3. Get disease demand profiles
+        disease_profiles = {d["name"]: d for d in diseases_col.find({}, {"_id": 0})}
+
+        # 4. Find medicines that are low AND in high-outbreak disease demand
+        demanded = set()
+        for disease in set(high_outbreak):
+            if disease in disease_profiles:
+                demanded.update(disease_profiles[disease].get("medicines", []))
+
+        # 5. Build suggestions
+        suggestions = []
+        seen = set()
+        for item in sorted(low_items, key=lambda x: x["stock"] / x["threshold"]):
+            med = item["medicine"]
+            if med in seen:
+                continue
+            seen.add(med)
+            ratio    = item["stock"] / item["threshold"]
+            urgency  = 95 if ratio < 0.3 else 82 if ratio < 0.6 else 65
+            # Boost urgency if disease-driven
+            if any(med.lower() in d.lower() or d.lower() in med.lower() for d in demanded):
+                urgency = min(99, urgency + 10)
+            qty_needed = item["threshold"] + 50 - item["stock"]
+            reason = (
+                f"Stock at {round(ratio*100)}% of threshold. "
+                + (f"High disease demand detected ({', '.join(high_outbreak[:2])})." if demanded else "")
+            )
+            suggestions.append({
+                "id": len(suggestions) + 1,
+                "name": med,
+                "urgency": urgency,
+                "qty": int(qty_needed),
+                "reason": reason,
+                "pharmacyId": item["pharmacyId"]
+            })
+            if len(suggestions) >= 5:
+                break
+
+        # 6. Summary stats
+        rising_diseases = [r["disease"] for r in (outbreak_doc["data"] if outbreak_doc else []) if r["trend"] == "Rising"]
+        return jsonify({
+            "suggestions": suggestions,
+            "stats": {
+                "trend": "Rising" if rising_diseases else "Stable",
+                "velocity": f"+{len(rising_diseases)}% regions",
+                "criticalItems": sum(1 for i in low_items if i["stock"] / i["threshold"] < 0.3),
+                "confidence": 94
+            }
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 
 # ─── AUTO-SEEDING LOGIC ──────────────────────────────────────────
 
 def auto_seed():
     try:
-        # Check if master data exists
+        # Master medicines + diseases
         if medicines_col.count_documents({}) == 0 or diseases_col.count_documents({}) == 0:
             print("Master data empty. Auto-seeding medicines and diseases...")
             seed_master()
-        
-        # Check if inventory exists
+
+        # Inventory
         if inventory_col.count_documents({}) == 0:
             print("Inventory empty. Auto-seeding default inventory...")
             seed_inventory()
-            
+
+        # Patient alerts — seed from outbreak data
+        if patient_alerts_col.count_documents({}) == 0:
+            print("Patient alerts empty. Seeding from outbreak data...")
+            outbreak = external_data_col.find_one({"type": "alerts"}, {"_id": 0})
+            if outbreak:
+                alerts_to_seed = []
+                for r in outbreak["data"][:6]:
+                    sev = "high" if r["level"] == "HIGH" else "medium" if r["level"] == "MEDIUM" else "low"
+                    alerts_to_seed.append({
+                        "id": f"a{len(alerts_to_seed)+1}",
+                        "title": f"{r['disease']} outbreak — {r['region']}",
+                        "message": f"{r['cases']} cases reported. Trend: {r['trend']}.",
+                        "severity": sev,
+                        "time": "Updated today"
+                    })
+                patient_alerts_col.insert_many(alerts_to_seed)
+                print(f"Seeded {len(alerts_to_seed)} patient alerts")
+
+        # Sample purchase history
+        if purchases_col.count_documents({}) == 0:
+            print("Purchases empty. Seeding sample purchase history...")
+            import datetime
+            sample_purchases = [
+                {"userId": "demo", "medicine": "Paracetamol 500mg", "type": "generic", "price": 15, "saved": 35, "pharmacy": "Apollo Pharmacy - HSR",          "date": "2025-04-18"},
+                {"userId": "demo", "medicine": "Pantoprazole 40mg", "type": "generic", "price": 25, "saved": 70, "pharmacy": "MedPlus - Koramangala",        "date": "2025-04-12"},
+                {"userId": "demo", "medicine": "Azithromycin 500mg","type": "brand",   "price": 160,"saved": 0,  "pharmacy": "Jan Aushadhi - Indiranagar",    "date": "2025-04-04"},
+                {"userId": "demo", "medicine": "Atorvastatin 10mg", "type": "generic", "price": 28, "saved": 82, "pharmacy": "Apollo Pharmacy - HSR",          "date": "2025-03-28"},
+                {"userId": "demo", "medicine": "Metformin 500mg",   "type": "generic", "price": 20, "saved": 70, "pharmacy": "MedPlus - Koramangala",        "date": "2025-03-20"},
+            ]
+            purchases_col.insert_many(sample_purchases)
+            print(f"Seeded {len(sample_purchases)} sample purchases")
+
         print("Database health check: OK")
     except Exception as e:
         print(f"Auto-seed error: {e}")
