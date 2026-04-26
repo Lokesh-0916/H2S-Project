@@ -28,12 +28,21 @@ function ChartTooltip({ active, payload, label }: any) {
 }
 
 export function StoreDashboard() {
+  const [lowStock, setLowStock] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetch(`${BACKEND_URL}/api/stock-alerts`)
+      .then(r => r.json())
+      .then(d => { if (d.alerts) setLowStock(d.alerts); })
+      .catch(() => {});
+  }, []);
+
   return (
     <div className="space-y-6">
       <SectionHeader title="Operations Overview" subtitle="Live snapshot of your network and demand signals" />
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="Connected Pharmacies" value="120" accent="brand" icon={<Activity className="w-5 h-5" />} delta="+8 this month" />
-        <StatCard label="Critical Alerts" value="14" accent="danger" icon={<AlertTriangle className="w-5 h-5" />} delta="+3 today" />
+        <StatCard label="Critical Alerts" value={lowStock.filter(a => a.severity === "CRITICAL").length || "—"} accent="danger" icon={<AlertTriangle className="w-5 h-5" />} delta="from DB" />
         <StatCard label="Patients Served" value="48.2k" accent="teal" icon={<Users className="w-5 h-5" />} delta="+12% MoM" />
         <StatCard label="Forecast Accuracy" value="94%" accent="success" icon={<TrendingUp className="w-5 h-5" />} delta="+2% WoW" />
       </div>
@@ -89,18 +98,19 @@ export function StoreDashboard() {
 
       <Card>
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-display font-semibold">Low Stock — Current Store</h3>
-          <Badge variant="danger">{initialInventory.filter(i => i.stock < i.threshold).length} items</Badge>
+          <h3 className="font-display font-semibold">Low Stock — Network Alerts</h3>
+          <Badge variant="danger">{lowStock.length} items</Badge>
         </div>
         <div className="space-y-3">
-          {initialInventory.filter(i => i.stock < i.threshold).map(item => {
+          {lowStock.length === 0 && <p className="text-sm text-muted-foreground">Loading stock alerts…</p>}
+          {lowStock.map((item, idx) => {
             const pct = (item.stock / item.threshold) * 100;
-            const accent = pct < 30 ? "danger" : pct < 70 ? "amber" : "success";
+            const accent = pct < 30 ? "danger" : pct < 60 ? "amber" : "success";
             return (
-              <div key={item.id} className="flex items-center gap-4">
+              <div key={idx} className="flex items-center gap-4">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between text-sm mb-1">
-                    <span className="font-medium truncate">{item.name}</span>
+                    <span className="font-medium truncate">{item.medicine} <span className="text-muted-foreground text-xs">({item.pharmacy})</span></span>
                     <span className="text-muted-foreground tabular-nums">{item.stock}/{item.threshold}</span>
                   </div>
                   <ProgressBar value={pct} accent={accent} />
@@ -657,24 +667,50 @@ export function StockTransfers() {
 
 export function AutoRedistribute() {
   const { push } = useToast();
-  const suggestions = [
-    { id: 1, from: "Apollo - Indiranagar", to: "Sunrise Medicals", medicine: "Azithromycin 500mg", qty: 40, gain: "+38% coverage" },
-    { id: 2, from: "MedPlus - Koramangala", to: "Green Cross", medicine: "Paracetamol 500mg", qty: 80, gain: "+22% coverage" },
-    { id: 3, from: "1mg - HSR", to: "Apollo - Indiranagar", medicine: "Pantoprazole 40mg", qty: 30, gain: "+15% coverage" },
-  ];
-  const distData = [
-    { name: "Apollo", before: 240, after: 200 },
-    { name: "MedPlus", before: 280, after: 200 },
-    { name: "1mg", before: 220, after: 190 },
-    { name: "Sunrise", before: 60, after: 100 },
-    { name: "Green Cross", before: 70, after: 150 },
-  ];
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [distData, setDistData] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetch(`${BACKEND_URL}/api/redistribution`)
+      .then(r => r.json())
+      .then((data: any) => {
+        if (data.suggestions) {
+          setSuggestions(data.suggestions.map((s: any, i: number) => ({
+            id: i + 1,
+            from: s.fromName,
+            to: s.toName,
+            medicine: s.medicine,
+            qty: s.quantity,
+            gain: `+${Math.round((s.quantity / s.threshold) * 100)}% coverage`,
+          })));
+          // Build distribution comparison chart from suggestions
+          const byPharmacy: Record<string, { before: number; after: number }> = {};
+          data.suggestions.forEach((s: any) => {
+            const fn = s.fromName.split(" - ")[0];
+            const tn = s.toName.split(" - ")[0];
+            if (!byPharmacy[fn]) byPharmacy[fn] = { before: s.surplus, after: s.surplus - s.quantity };
+            if (!byPharmacy[tn]) byPharmacy[tn] = { before: s.current, after: s.current + s.quantity };
+          });
+          setDistData(Object.entries(byPharmacy).map(([name, v]) => ({ name, ...v })));
+        }
+      })
+      .catch(() => {
+        // Fallback static distData
+        setDistData([
+          { name: "Apollo", before: 240, after: 200 },
+          { name: "MedPlus", before: 280, after: 200 },
+          { name: "Jan Aus.", before: 60, after: 100 },
+        ]);
+      });
+  }, []);
+
   return (
     <div className="space-y-6">
       <SectionHeader title="AI-balanced inventory" subtitle="Automated transfers to even out coverage"
         action={<button onClick={() => push("success", "Auto-optimization queued")} className="px-4 py-2 rounded-lg gradient-brand text-white text-sm font-medium flex items-center gap-2"><Wand2 className="w-4 h-4" />Auto-optimize</button>} />
       <div className="grid lg:grid-cols-2 gap-6">
         <div className="space-y-3">
+          {suggestions.length === 0 && <p className="text-sm text-muted-foreground">Loading redistribution data…</p>}
           {suggestions.map(s => (
             <Card key={s.id}>
               <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -716,8 +752,20 @@ export function AutoRedistribute() {
 }
 
 export function Analytics() {
+  const [topMeds, setTopMeds] = useState(medicines.slice(0, 6).map(m => ({ name: m.generic, demand: 50 + Math.floor(Math.random() * 200) })));
   const inventoryHealth = pharmacies.map(p => ({ name: p.name.split(" - ")[0] || p.name, health: 60 + Math.floor(Math.random() * 35) }));
-  const topMeds = medicines.slice(0, 6).map(m => ({ name: m.generic, demand: 50 + Math.floor(Math.random() * 200) }));
+
+  useEffect(() => {
+    fetch(`${BACKEND_URL}/api/all-generics`)
+      .then(r => r.json())
+      .then((data: any[]) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setTopMeds(data.slice(0, 6).map(m => ({ name: m.generic || m.brand, demand: m.brandPrice - m.genericPrice + Math.floor(Math.random() * 50) })));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   const adoption = [
     { name: "Generic", value: 62, color: "var(--brand)" },
     { name: "Brand", value: 38, color: "var(--amber)" },
