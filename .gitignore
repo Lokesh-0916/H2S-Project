@@ -4,6 +4,10 @@
 .env.production
 .env.*.local
 
+# Explicit per-service .env safety net
+auth-server/.env
+backend/.env
+
 # ── Node.js ───────────────────────────────────────────────
 node_modules/
 npm-debug.log*
@@ -36,6 +40,10 @@ desktop.ini
 .idea/
 *.swp
 *.swo
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
 
 # ── Database & Secrets ────────────────────────────────────
 auth-server/data/db/
@@ -53,6 +61,7 @@ logs/
 frontend/dist/
 frontend/.wrangler/
 frontend/.tanstack/
+frontend/.vite/
 frontend/bun.lockb
 frontend/bunfig.toml
 frontend/wrangler.jsonc
