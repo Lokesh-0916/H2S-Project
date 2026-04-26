@@ -374,13 +374,45 @@ def check_qr():
 
 @app.route("/api/stock-alerts", methods=["GET"])
 def stock_alerts():
-    alerts = [
-        {"pharmacy": "Apollo HSR", "medicine": "ORS Sachets", "stock": 15, "threshold": 200, "severity": "CRITICAL"},
-        {"pharmacy": "MedPlus Koramangala", "medicine": "Cetirizine", "stock": 45, "threshold": 80, "severity": "LOW"},
-        {"pharmacy": "Apollo HSR", "medicine": "Paracetamol", "stock": 50, "threshold": 300, "severity": "CRITICAL"},
-        {"pharmacy": "Jan Aushadhi", "medicine": "Omeprazole", "stock": 25, "threshold": 150, "severity": "LOW"},
-    ]
-    return jsonify({"alerts": alerts, "total": len(alerts)})
+    try:
+        ph_names = {
+            "PH001": "MedPlus - Koramangala",
+            "PH002": "Apollo Pharmacy - HSR",
+            "PH003": "Jan Aushadhi - Indiranagar"
+        }
+
+        # Query inventory for all items where stock is below threshold
+        low_items = list(inventory_col.find(
+            {"$expr": {"$lt": ["$stock", "$threshold"]}},
+            {"_id": 0}
+        ))
+
+        alerts = []
+        for item in low_items:
+            ratio = item["stock"] / item["threshold"] if item["threshold"] > 0 else 1
+            if ratio < 0.3:
+                severity = "CRITICAL"
+            elif ratio < 0.6:
+                severity = "MEDIUM"
+            else:
+                severity = "LOW"
+
+            alerts.append({
+                "pharmacyId": item["pharmacyId"],
+                "pharmacy":   ph_names.get(item["pharmacyId"], item["pharmacyId"]),
+                "medicine":   item["medicine"],
+                "stock":      item["stock"],
+                "threshold":  item["threshold"],
+                "severity":   severity
+            })
+
+        # Sort: CRITICAL first, then MEDIUM, then LOW
+        order = {"CRITICAL": 0, "MEDIUM": 1, "LOW": 2}
+        alerts.sort(key=lambda x: order.get(x["severity"], 3))
+
+        return jsonify({"alerts": alerts, "total": len(alerts)})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route("/api/redistribution", methods=["GET"])
 def redistribution():
