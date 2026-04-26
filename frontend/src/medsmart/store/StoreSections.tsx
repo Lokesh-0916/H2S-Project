@@ -551,9 +551,46 @@ export function Inventory() {
 export function StockTransfers() {
   const { push } = useToast();
   const [list, setList] = useState<Transfer[]>(initialTransfers);
+  const [liveMeds, setLiveMeds] = useState<{ name: string }[]>(medicines);
   const [tab, setTab] = useState<"out" | "in">("out");
   const [filter, setFilter] = useState<"all" | "pending" | "approved" | "rejected">("all");
   const [form, setForm] = useState({ from: pharmacies[0].id, to: pharmacies[1].id, medicine: medicines[0].name, qty: "", urgency: "medium", reason: "" });
+
+  // Load live redistribution suggestions + live medicines on mount
+  useEffect(() => {
+    // 1. Redistribution suggestions from DB
+    fetch(`${BACKEND_URL}/api/redistribution`)
+      .then(r => r.json())
+      .then((data: any) => {
+        if (data.suggestions && data.suggestions.length > 0) {
+          const mapped: Transfer[] = data.suggestions.map((s: any, i: number) => ({
+            id: "db" + i,
+            from: s.fromId,
+            to: s.toId,
+            medicine: s.medicine,
+            qty: s.quantity,
+            urgency: s.urgency === "URGENT" ? "high" : "medium" as any,
+            reason: `Auto: surplus at ${s.fromName}, shortage at ${s.toName}`,
+            status: "pending" as const,
+            date: new Date().toISOString().slice(0, 10),
+          }));
+          setList(mapped);
+        }
+      })
+      .catch(() => { /* backend offline — keep static initialTransfers */ });
+
+    // 2. Live medicines for dropdown
+    fetch(`${BACKEND_URL}/api/all-generics`)
+      .then(r => r.json())
+      .then((data: any[]) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setLiveMeds(data.map(m => ({ name: m.generic || m.brand })));
+          setForm(f => ({ ...f, medicine: data[0].generic || data[0].brand }));
+        }
+      })
+      .catch(() => { /* fallback to static */ });
+  }, []);
+
   function submit() {
     if (!form.qty) return push("error", "Quantity required");
     const t: Transfer = { id: "t" + Date.now(), from: tab === "out" ? form.from : form.to, to: tab === "out" ? form.to : form.from, medicine: form.medicine, qty: parseInt(form.qty), urgency: form.urgency as any, reason: form.reason || "—", status: "pending", date: new Date().toISOString().slice(0, 10) };
@@ -574,7 +611,7 @@ export function StockTransfers() {
           <div className="space-y-3">
             <Select label={tab === "out" ? "From (you)" : "To (you)"} v={form.from} on={v => setForm({ ...form, from: v })} options={pharmacies.map(p => ({ v: p.id, l: p.name }))} />
             <Select label={tab === "out" ? "To" : "From"} v={form.to} on={v => setForm({ ...form, to: v })} options={pharmacies.map(p => ({ v: p.id, l: p.name }))} />
-            <Select label="Medicine" v={form.medicine} on={v => setForm({ ...form, medicine: v })} options={medicines.map(m => ({ v: m.name, l: m.name }))} />
+            <Select label="Medicine" v={form.medicine} on={v => setForm({ ...form, medicine: v })} options={liveMeds.map(m => ({ v: m.name, l: m.name }))} />
             <Input label="Quantity" v={form.qty} on={v => setForm({ ...form, qty: v })} type="number" />
             <Select label="Urgency" v={form.urgency} on={v => setForm({ ...form, urgency: v })} options={[{ v: "low", l: "Low" }, { v: "medium", l: "Medium" }, { v: "high", l: "High" }]} />
             <Input label="Reason" v={form.reason} on={v => setForm({ ...form, reason: v })} />
