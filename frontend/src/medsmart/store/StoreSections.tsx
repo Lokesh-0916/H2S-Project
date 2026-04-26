@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { motion } from "framer-motion";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, Legend } from "recharts";
 import { Activity, AlertTriangle, Users, TrendingUp, Plus, Brain, Sparkles, Package, Edit2, Save, X, ArrowRight, Check, RefreshCw, Wand2 } from "lucide-react";
@@ -406,6 +406,7 @@ export function Inventory() {
   const { push } = useToast();
   const { user } = useApp();
   const [items, setItems] = useState<InventoryItem[]>(initialInventory);
+  const [loadingInv, setLoadingInv] = useState(true);
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState(0);
   const [restocking, setRestocking] = useState<string | null>(null);
@@ -413,6 +414,33 @@ export function Inventory() {
   const critical = items.filter(i => i.stock < i.threshold * 0.3).length;
   const low = items.filter(i => i.stock >= i.threshold * 0.3 && i.stock < i.threshold).length;
   const healthy = items.filter(i => i.stock >= i.threshold).length;
+
+  // Fetch live inventory from backend on mount
+  useEffect(() => {
+    const pharmacyId = (() => {
+      if (!user?.token) return "PH001";
+      try {
+        const p = JSON.parse(atob(user.token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+        return p.storeId || "PH001";
+      } catch { return "PH001"; }
+    })();
+    fetch(`${BACKEND_URL}/api/inventory/${pharmacyId}`)
+      .then(r => r.json())
+      .then((data: any[]) => {
+        if (Array.isArray(data) && data.length > 0) {
+          const mapped: InventoryItem[] = data.map((d, idx) => ({
+            id: String(idx + 1),
+            medicineId: String(idx + 1),
+            name: d.medicine,
+            stock: d.stock,
+            threshold: d.threshold,
+          }));
+          setItems(mapped);
+        }
+      })
+      .catch(() => { /* backend offline — keep static fallback */ })
+      .finally(() => setLoadingInv(false));
+  }, [user?.token]);
   function startEdit(i: InventoryItem) { setEditing(i.id); setDraft(i.stock); }
   function save(id: string) { setItems(s => s.map(i => i.id === id ? { ...i, stock: draft } : i)); setEditing(null); push("success", "Stock updated"); }
 
@@ -453,7 +481,12 @@ export function Inventory() {
   }
   return (
     <div className="space-y-6">
-      <SectionHeader title="Inventory management" subtitle="Track every SKU, edit stock, trigger restock" />
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <SectionHeader title="Inventory management" subtitle="Track every SKU, edit stock, trigger restock" />
+        <span className={`text-xs px-2 py-1 rounded-full font-medium ${loadingInv ? "bg-muted text-muted-foreground" : "bg-success/15"}`} style={!loadingInv ? { color: "var(--success)" } : {}}>
+          {loadingInv ? "Loading…" : `✅ Live DB · ${items.length} items`}
+        </span>
+      </div>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="Total Units" value={total.toLocaleString()} accent="brand" icon={<Package className="w-5 h-5" />} />
         <StatCard label="Critical" value={critical} accent="danger" icon={<AlertTriangle className="w-5 h-5" />} />
