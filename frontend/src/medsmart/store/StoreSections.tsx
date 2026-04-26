@@ -4,6 +4,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { Activity, AlertTriangle, Users, TrendingUp, Plus, Brain, Sparkles, Package, Edit2, Save, X, ArrowRight, Check, RefreshCw, Wand2 } from "lucide-react";
 import { Card, StatCard, Badge, ProgressBar, SectionHeader } from "../shared/ui";
 import { useToast } from "../shared/Toast";
+import { useApp } from "../AppContext";
 import { trendData, demandDonut, initialInventory, diseaseReports as initialDiseases, initialTransfers, pharmacies, medicines } from "../data";
 import type { InventoryItem, DiseaseReport, Transfer } from "../types";
 import { cn } from "@/lib/utils";
@@ -181,12 +182,19 @@ export function DiseaseMonitor() {
   );
 }
 
+const BACKEND_URL = "http://localhost:5000";
+
 export function DemandForecast() {
-  const [disease, setDisease] = useState("Influenza");
+  const { push } = useToast();
+  const [disease, setDisease] = useState("Flu/Influenza");
   const [cases, setCases] = useState(124);
   const [growth, setGrowth] = useState(18);
   const [windowWk, setWindowWk] = useState(2);
-  const forecast = useMemo(() => {
+  const [loading, setLoading] = useState(false);
+  const [backendResult, setBackendResult] = useState<any>(null);
+
+  // Local fallback forecast
+  const localForecast = useMemo(() => {
     const arr = [];
     let c = cases;
     for (let w = 1; w <= windowWk; w++) {
@@ -195,9 +203,45 @@ export function DemandForecast() {
     }
     return arr;
   }, [cases, growth, windowWk]);
-  const peak = forecast[forecast.length - 1]?.predicted || cases;
-  const risk = peak > 250 ? "high" : peak > 120 ? "medium" : "low";
+
+  const forecast = backendResult
+    ? backendResult.predictions.map((_: any, i: number) => ({
+        week: `Week ${i + 1}`,
+        predicted: Math.round(backendResult.predictedCases * Math.pow(1 + growth / 100, i + 1) / windowWk),
+      }))
+    : localForecast;
+
+  const peak = backendResult?.predictedCases || (localForecast[localForecast.length - 1]?.predicted ?? cases);
+  const risk = backendResult
+    ? backendResult.riskLevel.toLowerCase() as "high" | "medium" | "low"
+    : peak > 250 ? "high" : peak > 120 ? "medium" : "low";
   const stockNeeded = Math.round(peak * 1.4);
+
+  async function runForecast() {
+    setLoading(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/predict-demand`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ disease, cases, growthRate: growth, days: windowWk * 7 }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        push("error", err.error || "Prediction failed");
+        setBackendResult(null);
+      } else {
+        const data = await res.json();
+        setBackendResult(data);
+        push("success", `AI forecast complete — Risk: ${data.riskLevel}`);
+      }
+    } catch {
+      push("info", "Backend offline — showing local estimate");
+      setBackendResult(null);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <SectionHeader title="Predictive forecasting" subtitle="Plan your stock with AI-driven projections" />
@@ -205,20 +249,29 @@ export function DemandForecast() {
         <Card>
           <h3 className="font-display font-semibold mb-4">Parameters</h3>
           <div className="space-y-4">
-            <Input label="Disease" v={disease} on={setDisease} />
-            <Input label="Current cases" v={cases.toString()} on={v => setCases(parseInt(v) || 0)} type="number" />
+            <div>
+              <div className="text-xs text-muted-foreground mb-1">Disease</div>
+              <select value={disease} onChange={e => { setDisease(e.target.value); setBackendResult(null); }} className="w-full bg-card border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand/40">
+                {["Flu/Influenza","Dengue","Malaria","COVID-19","Cholera","Typhoid"].map(d => <option key={d} value={d}>{d}</option>)}
+              </select>
+            </div>
+            <Input label="Current cases" v={cases.toString()} on={v => { setCases(parseInt(v) || 0); setBackendResult(null); }} type="number" />
             <div>
               <div className="text-xs text-muted-foreground mb-1">Growth rate: {growth}%</div>
-              <input type="range" min={0} max={100} value={growth} onChange={e => setGrowth(parseInt(e.target.value))} className="w-full accent-[var(--brand)]" />
+              <input type="range" min={0} max={100} value={growth} onChange={e => { setGrowth(parseInt(e.target.value)); setBackendResult(null); }} className="w-full accent-[var(--brand)]" />
             </div>
             <div>
               <div className="text-xs text-muted-foreground mb-1">Forecast window: {windowWk} weeks</div>
-              <input type="range" min={1} max={8} value={windowWk} onChange={e => setWindowWk(parseInt(e.target.value))} className="w-full accent-[var(--brand)]" />
+              <input type="range" min={1} max={8} value={windowWk} onChange={e => { setWindowWk(parseInt(e.target.value)); setBackendResult(null); }} className="w-full accent-[var(--brand)]" />
             </div>
             <div className="p-3 rounded-lg border bg-card/60 flex items-center justify-between">
               <span className="text-sm">Risk level</span>
               <Badge variant={risk === "high" ? "danger" : risk === "medium" ? "amber" : "success"}>{risk.toUpperCase()}</Badge>
             </div>
+            <button onClick={runForecast} disabled={loading} className="w-full py-2 rounded-lg gradient-brand text-white font-medium flex items-center justify-center gap-2 disabled:opacity-60">
+              {loading ? <><RefreshCw className="w-4 h-4 animate-spin" />Running AI forecast…</> : <><Brain className="w-4 h-4" />Run AI Forecast</>}
+            </button>
+            {backendResult && <div className="text-xs text-success text-center">✅ Powered by backend ML engine</div>}
           </div>
         </Card>
         <Card className="lg:col-span-2">
@@ -234,6 +287,17 @@ export function DemandForecast() {
               </BarChart>
             </ResponsiveContainer>
           </div>
+          {backendResult && (
+            <div className="mt-3 grid grid-cols-3 gap-3">
+              {backendResult.predictions.map((p: any) => (
+                <div key={p.medicine} className="p-2 rounded-lg border bg-card/40 text-center">
+                  <div className="text-xs text-muted-foreground truncate">{p.medicine}</div>
+                  <div className="text-lg font-bold font-display">{p.unitsNeeded.toLocaleString()}</div>
+                  <div className="text-[10px] text-muted-foreground">units needed</div>
+                </div>
+              ))}
+            </div>
+          )}
         </Card>
       </div>
       <Card>
@@ -249,7 +313,7 @@ export function DemandForecast() {
                 <div className="text-[10px] text-muted-foreground">{p.city}</div>
               </div>
               <div className="text-right shrink-0">
-                <div className="text-lg font-display font-bold tabular-nums">{Math.round(stockNeeded / pharmacies.length + Math.random() * 20)}</div>
+                <div className="text-lg font-display font-bold tabular-nums">{Math.round(stockNeeded / pharmacies.length)}</div>
                 <div className="text-[10px] text-muted-foreground">units</div>
               </div>
             </div>
@@ -340,16 +404,53 @@ export function AISuggestions() {
 
 export function Inventory() {
   const { push } = useToast();
+  const { user } = useApp();
   const [items, setItems] = useState<InventoryItem[]>(initialInventory);
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState(0);
+  const [restocking, setRestocking] = useState<string | null>(null);
   const total = items.reduce((s, i) => s + i.stock, 0);
   const critical = items.filter(i => i.stock < i.threshold * 0.3).length;
   const low = items.filter(i => i.stock >= i.threshold * 0.3 && i.stock < i.threshold).length;
   const healthy = items.filter(i => i.stock >= i.threshold).length;
   function startEdit(i: InventoryItem) { setEditing(i.id); setDraft(i.stock); }
   function save(id: string) { setItems(s => s.map(i => i.id === id ? { ...i, stock: draft } : i)); setEditing(null); push("success", "Stock updated"); }
-  function restock(i: InventoryItem) { setItems(s => s.map(x => x.id === i.id ? { ...x, stock: x.threshold + 50 } : x)); push("success", `Restocked ${i.name}`); }
+
+  // Derive pharmacyId from logged-in user token
+  function getPharmacyId(): string {
+    if (!user?.token) return "PH001";
+    try {
+      const payload = JSON.parse(atob(user.token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+      return payload.storeId || "PH001";
+    } catch { return "PH001"; }
+  }
+
+  async function restock(i: InventoryItem) {
+    const addQty = i.threshold + 50 - i.stock;
+    const pharmacyId = getPharmacyId();
+    setRestocking(i.id);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/inventory/restock`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pharmacyId, medicine: i.name, quantity: addQty }),
+      });
+      if (res.ok) {
+        setItems(s => s.map(x => x.id === i.id ? { ...x, stock: i.threshold + 50 } : x));
+        push("success", `Restocked ${i.name} — saved to database ✅`);
+      } else {
+        // Backend responded but with error (item not seeded yet) — update locally
+        setItems(s => s.map(x => x.id === i.id ? { ...x, stock: i.threshold + 50 } : x));
+        push("info", `Restocked ${i.name} locally (seed DB to persist)`);
+      }
+    } catch {
+      // Backend offline — update locally
+      setItems(s => s.map(x => x.id === i.id ? { ...x, stock: i.threshold + 50 } : x));
+      push("info", `Restocked ${i.name} (backend offline — local only)`);
+    } finally {
+      setRestocking(null);
+    }
+  }
   return (
     <div className="space-y-6">
       <SectionHeader title="Inventory management" subtitle="Track every SKU, edit stock, trigger restock" />
@@ -396,7 +497,9 @@ export function Inventory() {
                         ) : (
                           <>
                             <button onClick={() => startEdit(i)} className="w-8 h-8 rounded-lg hover:bg-accent grid place-items-center"><Edit2 className="w-4 h-4" /></button>
-                            <button onClick={() => restock(i)} className="px-2 h-8 rounded-lg gradient-brand text-white text-xs font-medium">Restock</button>
+                            <button onClick={() => restock(i)} disabled={restocking === i.id} className="px-2 h-8 rounded-lg gradient-brand text-white text-xs font-medium disabled:opacity-60">
+                              {restocking === i.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : "Restock"}
+                            </button>
                           </>
                         )}
                       </div>

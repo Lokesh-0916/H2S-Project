@@ -43,6 +43,10 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: null,
   },
+  licenseNo: {
+    type: String,
+    default: null,
+  },
   provider: {
     type: String,
     enum: ['local', 'google', 'microsoft'],

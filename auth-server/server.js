@@ -51,9 +51,9 @@ app.use('/auth',    authRoutes);
 app.use('/profile', profileRoutes);
 app.use('/stores',  storeRoutes);
 
-// ── Serve Frontend ─────────────────────────────────────────
-const path = require('path');
-app.use(express.static(path.join(__dirname, '../')));
+// ── Static file serving intentionally removed ───────────────
+// (serving project root as static exposes .env & source files)
+const path = require('path'); // kept for potential future use
 
 // ── Health check ──────────────────────────────────────────
 app.get('/api/health', (req, res) => {

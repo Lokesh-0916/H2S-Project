@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Heart, Search as SearchIcon, ShoppingBag, Wallet, Bell, Sparkles, ArrowRight, Loader2, ShieldAlert, Pill, X } from "lucide-react";
 import { Card, StatCard, Badge, SectionHeader } from "../shared/ui";
@@ -127,23 +127,68 @@ export function HealthAlerts() {
   );
 }
 
+const BACKEND_URL = "http://localhost:5000";
+
 export function MedicineSearch() {
   const { push } = useToast();
   const [q, setQ] = useState("");
   const [scanning, setScanning] = useState(false);
   const [confirm, setConfirm] = useState<{ name: string; type: "brand" | "generic" } | null>(null);
+  const [dbMeds, setDbMeds] = useState<typeof medicines | null>(null);
+  const [loadingMeds, setLoadingMeds] = useState(true);
+
+  // Fetch from backend on mount, fallback to static data
+  useEffect(() => {
+    fetch(`${BACKEND_URL}/api/all-generics`)
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) {
+          // Map backend fields to frontend Medicine type
+          const mapped = data.map((m: any, i: number) => ({
+            id: String(i + 1),
+            name: m.generic || m.brand,
+            brand: m.brand,
+            generic: m.generic,
+            category: m.category || "General",
+            brandPrice: m.brandPrice,
+            genericPrice: m.genericPrice,
+            composition: m.salt || m.generic,
+          }));
+          setDbMeds(mapped);
+        }
+      })
+      .catch(() => {
+        // Backend offline — use static data silently
+      })
+      .finally(() => setLoadingMeds(false));
+  }, []);
+
+  const allMeds = dbMeds || medicines;
+  const isLive = !!dbMeds;
+
   const filtered = useMemo(() => {
-    if (!q) return medicines;
-    return medicines.filter(m => m.name.toLowerCase().includes(q.toLowerCase()) || m.brand.toLowerCase().includes(q.toLowerCase()) || m.generic.toLowerCase().includes(q.toLowerCase()));
-  }, [q]);
+    if (!q) return allMeds;
+    return allMeds.filter(m =>
+      m.name.toLowerCase().includes(q.toLowerCase()) ||
+      m.brand.toLowerCase().includes(q.toLowerCase()) ||
+      m.generic.toLowerCase().includes(q.toLowerCase())
+    );
+  }, [q, allMeds]);
+
   const top = filtered.slice(0, 3);
+
   function buy(m: typeof medicines[0], type: "brand" | "generic") {
     setScanning(true);
     setTimeout(() => { setScanning(false); setConfirm({ name: m.name, type }); }, 900);
   }
   return (
     <div className="space-y-6">
-      <SectionHeader title="Find your generic alternative" subtitle="Same composition. Same effect. Lower price." />
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <SectionHeader title="Find your generic alternative" subtitle="Same composition. Same effect. Lower price." />
+        <span className={`text-xs px-2 py-1 rounded-full font-medium ${isLive ? "bg-success/15 text-success" : "bg-muted text-muted-foreground"}`} style={isLive ? { color: "var(--success)" } : {}}>
+          {isLive ? `✅ Live DB · ${allMeds.length} medicines` : "📦 Static data"}
+        </span>
+      </div>
       <Card className="!p-4">
         <div className="flex items-center gap-3">
           <SearchIcon className="w-5 h-5 text-muted-foreground" />

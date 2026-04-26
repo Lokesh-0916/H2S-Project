@@ -263,6 +263,7 @@ router.post(
         provider: 'local',
         storeId,
         storeName,
+        licenseNo,
         profile: {
           name: ownerName,
           phone,
@@ -288,7 +289,12 @@ router.post(
 // Step 1: Redirect user to Google consent screen
 router.get(
   '/google',
-  passport.authenticate('google', { scope: ['profile', 'email'], session: false })
+  (req, res, next) => {
+    if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+      return res.status(501).json({ success: false, error: 'Google OAuth is not configured on this server.' });
+    }
+    passport.authenticate('google', { scope: ['profile', 'email'], session: false })(req, res, next);
+  }
 );
 
 // Step 2: Google redirects back here with code
@@ -322,7 +328,12 @@ router.get(
 // Step 1: Redirect user to Microsoft consent screen
 router.get(
   '/microsoft',
-  passport.authenticate('microsoft', { session: false })
+  (req, res, next) => {
+    if (!process.env.MS_CLIENT_ID || !process.env.MS_CLIENT_SECRET) {
+      return res.status(501).json({ success: false, error: 'Microsoft OAuth is not configured on this server.' });
+    }
+    passport.authenticate('microsoft', { session: false })(req, res, next);
+  }
 );
 
 // Step 2: Microsoft redirects back here with code

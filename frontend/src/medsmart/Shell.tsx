@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Activity, LayoutDashboard, Stethoscope, TrendingUp, Sparkles, Package, ArrowLeftRight, Shuffle, BarChart3, Bell, Sun, Moon, MapPin, LogOut, Settings, User as UserIcon, Heart, ShoppingBag, Search, Menu, X } from "lucide-react";
 import { useApp } from "./AppContext";
@@ -43,8 +43,22 @@ export default function Shell({ children }: { children: ReactNode }) {
   const [showAlerts, setShowAlerts] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [profileModal, setProfileModal] = useState(false);
+  const [svcStatus, setSvcStatus] = useState({ auth: null as boolean | null, backend: null as boolean | null });
   const nav = user?.role === "store" ? storeNav : patientNav;
   const title = titles[section] || { t: section, s: "" };
+
+  useEffect(() => {
+    async function checkHealth() {
+      const [auth, backend] = await Promise.all([
+        fetch("http://localhost:3001/api/health").then(() => true).catch(() => false),
+        fetch("http://localhost:5000/").then(() => true).catch(() => false),
+      ]);
+      setSvcStatus({ auth, backend });
+    }
+    checkHealth();
+    const id = setInterval(checkHealth, 30000);
+    return () => clearInterval(id);
+  }, []);
 
   return (
     <div className="min-h-screen flex bg-background">
@@ -155,6 +169,23 @@ export default function Shell({ children }: { children: ReactNode }) {
             </button>
           </div>
         </header>
+
+        {/* Service health banner */}
+        {(svcStatus.auth !== null || svcStatus.backend !== null) && (
+          <div className="flex items-center gap-3 px-4 lg:px-8 py-1.5 text-[11px] border-b bg-card/40 backdrop-blur">
+            <span className="text-muted-foreground font-medium">Services:</span>
+            <span className={`flex items-center gap-1 font-medium ${svcStatus.auth ? "text-success" : "text-danger"}`} style={{ color: svcStatus.auth ? "var(--success)" : "var(--danger)" }}>
+              <span className={`w-1.5 h-1.5 rounded-full ${svcStatus.auth ? "bg-success" : "bg-danger"}`} style={{ background: svcStatus.auth ? "var(--success)" : "var(--danger)" }} />
+              Auth {svcStatus.auth ? "Online" : "Offline"}
+            </span>
+            <span className={`flex items-center gap-1 font-medium`} style={{ color: svcStatus.backend ? "var(--success)" : "var(--danger)" }}>
+              <span className="w-1.5 h-1.5 rounded-full" style={{ background: svcStatus.backend ? "var(--success)" : "var(--danger)" }} />
+              Backend {svcStatus.backend ? "Online" : "Offline"}
+            </span>
+            {svcStatus.auth && svcStatus.backend && <span className="ml-auto text-muted-foreground">✅ All systems operational</span>}
+            {(!svcStatus.auth || !svcStatus.backend) && <span className="ml-auto" style={{ color: "var(--amber)" }}>⚠️ Demo mode active for offline services</span>}
+          </div>
+        )}
 
         <main className="flex-1 p-4 lg:p-8 overflow-x-hidden">
           <AnimatePresence mode="wait">

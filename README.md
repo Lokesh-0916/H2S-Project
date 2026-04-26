@@ -1,97 +1,221 @@
-# MedSmart — Healthcare Supply Intelligence
+# 🏥 MedSmart — Smart Healthcare Supply Intelligence
 
-> Real-time disease intelligence, AI-powered demand forecasting, and generic medicine discovery — for pharmacies and patients.
-
----
-
-## Project Structure
-
-```
-H2S-Project/
-├── auth-server/          # Node.js / Express authentication API (port 3001)
-│   ├── data/             # Static store data & MongoDB data directory
-│   ├── middleware/        # Passport.js OAuth, JWT auth, rate limiter
-│   ├── models/           # Mongoose models (User, etc.)
-│   ├── routes/           # Auth, profile, store routes
-│   ├── .env              # Secret keys & DB URI (never commit)
-│   ├── .env.example      # Template for .env
-│   └── server.js         # Entry point
-│
-├── backend/              # Python / Flask AI & data API (port 5000)
-│   ├── app.py            # Entry point
-│   └── requirements.txt  # Python dependencies
-│
-├── frontend/             # React / Vite / TailwindCSS UI (port 8080)
-│   ├── src/
-│   │   ├── medsmart/     # App core (Login, Shell, AppContext)
-│   │   │   ├── patient/  # Patient dashboard sections
-│   │   │   ├── store/    # Pharmacy dashboard sections
-│   │   │   └── shared/   # Reusable UI components & Toast
-│   │   ├── routes/       # TanStack Router routes
-│   │   └── styles.css    # Design system & Tailwind config
-│   ├── package.json
-│   └── vite.config.ts
-│
-├── .gitignore
-├── run.bat               # One-click launcher for all three services
-└── start-auth.bat        # Standalone launcher for auth server + MongoDB
-```
+[![Node.js](https://img.shields.io/badge/Auth-Node.js%20%2B%20Express-green)](https://nodejs.org)
+[![Python](https://img.shields.io/badge/Backend-Python%20%2B%20Flask-blue)](https://flask.palletsprojects.com)
+[![React](https://img.shields.io/badge/Frontend-React%20%2B%20Vite-61dafb)](https://vitejs.dev)
+[![MongoDB](https://img.shields.io/badge/Database-MongoDB%20Atlas-47A248)](https://www.mongodb.com/atlas)
 
 ---
 
-## Quick Start
+## 📌 Overview
 
-### Option A — Launch everything at once
-```bat
-run.bat
+**MedSmart** is a full-stack healthcare supply intelligence platform that connects pharmacies and patients through real-time disease monitoring, AI-powered demand forecasting, inventory management, and generic medicine discovery.
+
+This is a working prototype with:
+- A **React + Vite** frontend with dark mode, animations, and role-based dashboards
+- A **Node.js + Express** authentication server with JWT, rate limiting, and MongoDB
+- A **Python + Flask** backend with ML-based demand prediction and inventory management
+- **MongoDB Atlas** as the shared database
+
+---
+
+## 🎯 Problem Statement
+
+Healthcare supply chains struggle with:
+- **Stockouts** during disease outbreaks due to poor demand forecasting
+- **Price opacity** — patients don't know cheaper generic alternatives exist
+- **Fragmented inventory** — pharmacies can't see or share surplus stock
+
+MedSmart solves all three with a unified platform for pharmacies and patients.
+
+---
+
+## 🚀 Features
+
+### 🏪 Pharmacy / Store Dashboard
+- 📊 **Disease Monitor** — Log and track outbreaks with case growth trends
+- 🧠 **AI Demand Forecast** — Predict medicine demand based on disease spread (ML-powered)
+- 📦 **Inventory Management** — Real-time stock tracking, edit, and restock (persisted to MongoDB)
+- 🔄 **Stock Transfers** — Request/approve transfers between pharmacies
+- 🤖 **Auto Redistribution** — AI-suggested transfers to balance coverage
+- 📈 **Analytics** — Disease trends, generic adoption rates, top medicines
+
+### 👤 Patient Portal
+- 🔔 **Health Alerts** — Nearby outbreak notifications with severity levels
+- 💊 **Medicine Search** — Find generic alternatives with exact savings (live DB data)
+- 💰 **Purchase History** — Track spending and savings over time
+- ✅ **Medical Disclaimer Flow** — Safe buy confirmation before ordering
+
+### 🔐 Authentication
+- JWT-based login for both patients and pharmacy stores
+- PIN-based login for major pharmacy chains (Apollo, MedPlus, Jan Aushadhi)
+- Email + password for registered local pharmacies
+- Brute-force protection (account lockout after 5 failed attempts)
+- Google OAuth ready (configure credentials to enable)
+
+### 🛡️ System Health
+- Live service status banner — shows Auth Server & Backend online/offline in real time
+- Graceful demo mode fallback — all features work even if auth server is offline
+
+---
+
+## 🏗️ Architecture
+
 ```
-This starts the Auth Server, Python Backend, and Vite Frontend in separate windows.
+User Browser (React + Vite — Port 8080)
+       │
+       ├──► Auth Server (Node.js + Express — Port 3001)
+       │         └── MongoDB Atlas (medsmart DB — users, profiles)
+       │
+       └──► Backend (Python + Flask — Port 5000)
+                 └── MongoDB Atlas (medsmart DB — medicines, inventory, diseases)
+```
 
-### Option B — Run services individually
+---
 
-**Auth Server**
+## ⚙️ Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | React 18, Vite, TypeScript, TailwindCSS, Framer Motion, Recharts |
+| Auth Server | Node.js, Express, JWT, bcryptjs, Mongoose, Passport.js |
+| Backend | Python, Flask, PyMongo, scikit-learn (demand prediction) |
+| Database | MongoDB Atlas |
+| Dev Tools | nodemon, dotenv, ESLint, Prettier |
+
+---
+
+## 🛠️ Installation & Setup
+
+### Prerequisites
+- Node.js v18+
+- Python 3.9+
+- MongoDB Atlas account (or local MongoDB)
+
+### 1. Clone the repository
 ```bash
-cd auth-server
-npm install
-node server.js
+git clone https://github.com/your-username/H2S-Project.git
+cd H2S-Project
 ```
 
-**Python Backend**
-```bash
-cd backend
-pip install -r requirements.txt
-python app.py
-```
+### 2. Configure environment variables
 
-**Frontend**
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
----
-
-## Services & Ports
-
-| Service     | Port  | Tech                        |
-|-------------|-------|-----------------------------|
-| Frontend    | 8080  | React, Vite, TailwindCSS v4 |
-| Auth Server | 3001  | Node.js, Express, Passport  |
-| Backend     | 5000  | Python, Flask               |
-| MongoDB     | 27017 | MongoDB                     |
-
----
-
-## Environment Variables
-
-Copy `auth-server/.env.example` to `auth-server/.env` and fill in your values:
-
+**Auth Server** (`auth-server/.env`):
 ```env
-MONGO_URI=mongodb://localhost:27017/medsmart
-JWT_SECRET=your_secret
-GOOGLE_CLIENT_ID=...
-GOOGLE_CLIENT_SECRET=...
+PORT=3001
+MONGO_URI=mongodb+srv://<user>:<password>@<cluster>.mongodb.net/medsmart
+JWT_SECRET=your_secret_key
+JWT_EXPIRES_IN=8h
+FRONTEND_URL=http://localhost:5173
+NODE_ENV=development
 ```
 
-> ⚠️ Never commit `.env` files — they are gitignored.
+**Backend** (`backend/.env`):
+```env
+MONGO_URI=mongodb+srv://<user>:<password>@<cluster>.mongodb.net/medsmart
+```
+
+### 3. Install dependencies
+```bash
+# Auth Server
+cd auth-server && npm install
+
+# Frontend
+cd ../frontend && npm install
+
+# Backend
+cd ../backend && pip install -r requirements.txt
+```
+
+### 4. Seed the database (first time only)
+With the Flask backend running, hit these endpoints once:
+```
+POST http://localhost:5000/api/seed-master      # Seeds 15 medicines + 6 diseases
+POST http://localhost:5000/api/seed-inventory   # Seeds inventory for PH001, PH002, PH003
+POST http://localhost:5000/api/sync             # Syncs disease outbreak data
+```
+
+---
+
+## ▶️ Running the Application
+
+### Option A — One-click startup (Windows)
+```
+Double-click run.bat
+```
+This opens 3 terminal windows — Auth Server, Backend, and Frontend — all at once.
+
+### Option B — Manual startup
+```bash
+# Terminal 1 — Auth Server
+cd auth-server && npm start
+
+# Terminal 2 — Backend
+cd backend && python app.py
+
+# Terminal 3 — Frontend
+cd frontend && npm run dev
+```
+
+Then open: **http://localhost:5173** (or the port shown by Vite)
+
+---
+
+## 🔑 Demo Credentials
+
+| Role | Login Method | Credentials |
+|---|---|---|
+| Store — Apollo | PIN login | Store: Apollo, PIN: `5678` |
+| Store — MedPlus | PIN login | Store: MedPlus, PIN: `1234` |
+| Store — Jan Aushadhi | PIN login | Store: Jan Aushadhi, PIN: `9012` |
+| Patient | Email + Password | Register a new account |
+
+> If the auth server is offline, the app falls back to **demo mode** automatically — all features remain functional with local data.
+
+---
+
+## 📋 API Reference
+
+### Auth Server (Port 3001)
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/auth/login` | Patient login |
+| POST | `/auth/signup` | Patient registration |
+| POST | `/auth/store-login` | Store login (PIN or email) |
+| POST | `/auth/store-register` | Register local pharmacy |
+| GET | `/api/health` | Health check |
+
+### Backend (Port 5000)
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/api/all-generics` | List all medicines with savings |
+| GET | `/api/generic-medicine?brand=X` | Find generic for a brand |
+| POST | `/api/predict-demand` | AI demand forecast |
+| GET | `/api/inventory/<pharmacyId>` | Get pharmacy inventory |
+| POST | `/api/inventory/restock` | Restock a medicine |
+| POST | `/api/inventory/transfer` | Transfer between pharmacies |
+| GET | `/api/stock-alerts` | Critical stock alerts |
+| GET | `/api/redistribution` | AI redistribution suggestions |
+
+---
+
+## 🔮 Future Enhancements
+- 💳 Payment gateway integration (Razorpay / Stripe)
+- 📱 Mobile app (React Native)
+- 🌐 Real-time disease data from WHO / India Gov APIs
+- 📦 Full order management & tracking
+- 🔔 Push notifications for outbreak alerts
+- 🧪 Unit & integration test coverage
+
+---
+
+## 🤝 Contributing
+
+Pull requests are welcome!
+For major changes, please open an issue first to discuss what you'd like to change.
+
+---
+
+## 📜 License
+
+This project is created for educational and demonstration purposes.
