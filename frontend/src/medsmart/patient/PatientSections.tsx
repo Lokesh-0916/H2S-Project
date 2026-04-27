@@ -11,18 +11,27 @@ const BACKEND_URL = "http://localhost:5000";
 
 // Shared live-data hook
 function useLivePatientData() {
-  const [liveAlerts, setLiveAlerts]           = useState(staticAlerts);
-  const [livePurchases, setLivePurchases]     = useState(staticPurchases);
-  const [liveDiseases, setLiveDiseases]       = useState(staticDiseaseReports);
+  const { user } = useApp();
+  const [liveAlerts, setLiveAlerts]       = useState(staticAlerts);
+  const [livePurchases, setLivePurchases] = useState(staticPurchases);
+  const [liveDiseases, setLiveDiseases]   = useState(staticDiseaseReports);
 
   useEffect(() => {
+    // Global alerts — no auth needed
     fetch(`${BACKEND_URL}/api/patient-alerts`)
       .then(r => r.json()).then(d => { if (Array.isArray(d) && d.length) setLiveAlerts(d); }).catch(() => {});
-    fetch(`${BACKEND_URL}/api/purchases`)
+
+    // User-specific purchases — must send JWT so backend filters by userId
+    const token = user?.token;
+    fetch(`${BACKEND_URL}/api/purchases`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
       .then(r => r.json()).then(d => { if (Array.isArray(d) && d.length) setLivePurchases(d); }).catch(() => {});
+
+    // Global disease reports — no auth needed
     fetch(`${BACKEND_URL}/api/disease-reports`)
       .then(r => r.json()).then(d => { if (Array.isArray(d) && d.length) setLiveDiseases(d); }).catch(() => {});
-  }, []);
+  }, [user?.token]);
 
   return { liveAlerts, livePurchases, liveDiseases };
 }

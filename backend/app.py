@@ -603,13 +603,32 @@ def get_disease_reports():
 
 # ─── PURCHASE HISTORY ────────────────────────────────────────────
 
+def _user_id_from_token():
+    """Extract userId from JWT Authorization header. Returns None if missing/invalid."""
+    import jwt as pyjwt
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        return None
+    token = auth.split(" ", 1)[1]
+    try:
+        secret = os.getenv("JWT_SECRET", "medsmart_secret_key_2024")
+        payload = pyjwt.decode(token, secret, algorithms=["HS256"])
+        return str(payload.get("userId") or payload.get("id") or "")
+    except Exception:
+        return None
+
+
 @app.route("/api/purchases", methods=["GET"])
 def get_purchases():
-    """Returns purchase history. Optionally filter by userId."""
+    """Returns purchase history for the logged-in user (from JWT)."""
     try:
-        user_id = request.args.get("userId")
-        query = {"userId": user_id} if user_id else {}
-        docs = list(purchases_col.find(query, {"_id": 0}).sort("date", -1).limit(50))
+        user_id = _user_id_from_token()
+        # Fallback: allow explicit userId param for admin/demo
+        if not user_id:
+            user_id = request.args.get("userId")
+        if not user_id:
+            return jsonify([])   # No identity — return empty, not all records
+        docs = list(purchases_col.find({"userId": user_id}, {"_id": 0}).sort("date", -1).limit(50))
         return jsonify(docs)
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -617,17 +636,21 @@ def get_purchases():
 
 @app.route("/api/purchases/record", methods=["POST"])
 def record_purchase():
-    """Records a new purchase into the purchases collection."""
+    """Records a new purchase. userId always comes from JWT."""
     try:
-        data = request.json
+        user_id = _user_id_from_token()
+        if not user_id:
+            return jsonify({"status": "error", "message": "Unauthorized"}), 401
+        data = request.json or {}
+        import datetime
         purchase = {
-            "userId":    data.get("userId", "anonymous"),
-            "medicine":  data.get("medicine"),
-            "type":      data.get("type", "generic"),   # 'generic' or 'brand'
-            "price":     data.get("price", 0),
-            "saved":     data.get("saved", 0),
-            "pharmacy":  data.get("pharmacy", "Unknown"),
-            "date":      data.get("date", __import__("datetime").date.today().isoformat()),
+            "userId":   user_id,
+            "medicine": data.get("medicine"),
+            "type":     data.get("type", "generic"),
+            "price":    data.get("price", 0),
+            "saved":    data.get("saved", 0),
+            "pharmacy": data.get("pharmacy", "Unknown"),
+            "date":     data.get("date", datetime.date.today().isoformat()),
         }
         purchases_col.insert_one(purchase)
         return jsonify({"status": "success", "message": "Purchase recorded"})
@@ -737,19 +760,10 @@ def auto_seed():
                 patient_alerts_col.insert_many(alerts_to_seed)
                 print(f"Seeded {len(alerts_to_seed)} patient alerts")
 
-        # Sample purchase history
+        # NOTE: purchases are seeded via seed_users.py with real user IDs.
+        # Do NOT auto-seed demo data here — it would pollute per-user history.
         if purchases_col.count_documents({}) == 0:
-            print("Purchases empty. Seeding sample purchase history...")
-            import datetime
-            sample_purchases = [
-                {"userId": "demo", "medicine": "Paracetamol 500mg", "type": "generic", "price": 15, "saved": 35, "pharmacy": "Apollo Pharmacy - HSR",          "date": "2025-04-18"},
-                {"userId": "demo", "medicine": "Pantoprazole 40mg", "type": "generic", "price": 25, "saved": 70, "pharmacy": "MedPlus - Koramangala",        "date": "2025-04-12"},
-                {"userId": "demo", "medicine": "Azithromycin 500mg","type": "brand",   "price": 160,"saved": 0,  "pharmacy": "Jan Aushadhi - Indiranagar",    "date": "2025-04-04"},
-                {"userId": "demo", "medicine": "Atorvastatin 10mg", "type": "generic", "price": 28, "saved": 82, "pharmacy": "Apollo Pharmacy - HSR",          "date": "2025-03-28"},
-                {"userId": "demo", "medicine": "Metformin 500mg",   "type": "generic", "price": 20, "saved": 70, "pharmacy": "MedPlus - Koramangala",        "date": "2025-03-20"},
-            ]
-            purchases_col.insert_many(sample_purchases)
-            print(f"Seeded {len(sample_purchases)} sample purchases")
+            print("WARNING: purchases collection is empty. Run seed_users.py to populate.")
 
         print("Database health check: OK")
     except Exception as e:
