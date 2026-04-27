@@ -2,7 +2,7 @@ import { useState, useEffect, type ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Activity, LayoutDashboard, Stethoscope, TrendingUp, Sparkles, Package, ArrowLeftRight, Shuffle, BarChart3, Bell, Sun, Moon, MapPin, LogOut, Settings, User as UserIcon, Heart, ShoppingBag, Search, Menu, X } from "lucide-react";
 import { useApp } from "./AppContext";
-import { alerts } from "./data";
+import { alerts as staticAlerts } from "./data";
 import { cn } from "@/lib/utils";
 
 const storeNav = [
@@ -46,6 +46,15 @@ export default function Shell({ children }: { children: ReactNode }) {
   const [svcStatus, setSvcStatus] = useState({ auth: null as boolean | null, backend: null as boolean | null });
   const nav = user?.role === "store" ? storeNav : patientNav;
   const title = titles[section] || { t: section, s: "" };
+
+  const [liveAlerts, setLiveAlerts] = useState<typeof staticAlerts>(staticAlerts);
+
+  useEffect(() => {
+    fetch("http://localhost:5000/api/patient-alerts")
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d) && d.length) setLiveAlerts(d); })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     async function checkHealth() {
@@ -147,7 +156,7 @@ export default function Shell({ children }: { children: ReactNode }) {
                     className="absolute right-0 top-12 w-80 glass-strong rounded-xl p-3 shadow-lg z-50">
                     <div className="text-sm font-semibold mb-2 px-1">Alerts</div>
                     <div className="space-y-2 max-h-80 overflow-y-auto">
-                      {alerts.map(a => (
+                      {liveAlerts.map((a: any) => (
                         <div key={a.id} className="p-2.5 rounded-lg bg-card/60 border">
                           <div className="flex items-start gap-2">
                             <span className="w-2 h-2 rounded-full mt-1.5" style={{ background: a.severity === "high" ? "var(--danger)" : a.severity === "medium" ? "var(--amber)" : "var(--info)" }} />
