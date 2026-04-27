@@ -1,11 +1,11 @@
 import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Heart, Search as SearchIcon, ShoppingBag, Wallet, Bell, Sparkles, ArrowRight, Loader2, ShieldAlert, Pill, X } from "lucide-react";
+import { Heart, Search as SearchIcon, ShoppingBag, Wallet, Bell, Sparkles, Loader2, ShieldAlert, Pill, X } from "lucide-react";
 import { Card, StatCard, Badge, SectionHeader } from "../shared/ui";
 import { useToast } from "../shared/Toast";
 import { useApp } from "../AppContext";
 import { medicines, alerts as staticAlerts, purchases as staticPurchases, diseaseReports as staticDiseaseReports } from "../data";
-import { cn } from "@/lib/utils";
+
 
 const BACKEND_URL = "http://localhost:5000";
 

@@ -32,6 +32,7 @@ export function StoreDashboard() {
   const [lowStock, setLowStock] = useState<any[]>([]);
   const [liveTrend, setLiveTrend] = useState<any[]>(trendData);
   const [liveDonut, setLiveDonut] = useState<any[]>(demandDonut);
+  const [platformStats, setPlatformStats] = useState({ pharmacies: 120, criticalAlerts: 0, totalPurchases: 0 });
 
   useEffect(() => {
     fetch(`${BACKEND_URL}/api/stock-alerts`)
@@ -40,16 +41,18 @@ export function StoreDashboard() {
       .then(r => r.json()).then(d => { if (Array.isArray(d) && d.length) setLiveTrend(d); }).catch(() => {});
     fetch(`${BACKEND_URL}/api/demand-distribution`)
       .then(r => r.json()).then(d => { if (Array.isArray(d) && d.length) setLiveDonut(d); }).catch(() => {});
+    fetch(`${BACKEND_URL}/api/platform-stats`)
+      .then(r => r.json()).then(d => { if (d.pharmacies !== undefined) setPlatformStats(d); }).catch(() => {});
   }, []);
 
   return (
     <div className="space-y-6">
       <SectionHeader title="Operations Overview" subtitle="Live snapshot of your network and demand signals" />
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Connected Pharmacies" value="120" accent="brand" icon={<Activity className="w-5 h-5" />} delta="+8 this month" />
-        <StatCard label="Critical Alerts" value={lowStock.filter(a => a.severity === "CRITICAL").length || "—"} accent="danger" icon={<AlertTriangle className="w-5 h-5" />} delta="from DB" />
-        <StatCard label="Patients Served" value="48.2k" accent="teal" icon={<Users className="w-5 h-5" />} delta="+12% MoM" />
-        <StatCard label="Forecast Accuracy" value="94%" accent="success" icon={<TrendingUp className="w-5 h-5" />} delta="+2% WoW" />
+        <StatCard label="Connected Pharmacies" value={platformStats.pharmacies} accent="brand" icon={<Activity className="w-5 h-5" />} delta="active in DB" />
+        <StatCard label="Critical Alerts" value={lowStock.filter(a => a.severity === "CRITICAL").length || platformStats.criticalAlerts} accent="danger" icon={<AlertTriangle className="w-5 h-5" />} delta="from DB" />
+        <StatCard label="Purchases Logged" value={platformStats.totalPurchases} accent="teal" icon={<Users className="w-5 h-5" />} delta="in DB" />
+        <StatCard label="Forecast Accuracy" value="94%" accent="success" icon={<TrendingUp className="w-5 h-5" />} delta="AI model" />
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
