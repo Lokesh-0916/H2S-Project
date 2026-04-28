@@ -178,7 +178,7 @@ router.post(
         }
         // Issue a store token for demo stores (no DB user needed)
         const token = jwt.sign(
-          { userId: `demo_${storeId}`, email: `${storeId}@demo.medsmart`, role: 'store', storeId, storeName: store.name, name: store.name },
+          { userId: `demo_${storeId}`, email: `${storeId}@demo.pharmalink`, role: 'store', storeId, storeName: store.name, name: store.name },
           process.env.JWT_SECRET,
           { expiresIn: process.env.JWT_EXPIRES_IN || '8h' }
         );

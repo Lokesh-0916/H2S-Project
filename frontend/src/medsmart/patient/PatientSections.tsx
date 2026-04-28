@@ -319,7 +319,7 @@ export function MedicineSearch() {
                 </div>
                 <button onClick={() => setConfirm(null)} className="ml-auto w-8 h-8 rounded-lg hover:bg-accent grid place-items-center"><X className="w-4 h-4" /></button>
               </div>
-              <p className="text-sm text-muted-foreground">Generic medicines have the same active ingredients as their brand counterparts. Always consult your physician before substituting prescribed medication. MedSmart does not provide medical advice.</p>
+              <p className="text-sm text-muted-foreground">Generic medicines have the same active ingredients as their brand counterparts. Always consult your physician before substituting prescribed medication. PharmaLink does not provide medical advice.</p>
               <div className="mt-3 p-3 rounded-lg border bg-card/40 flex items-center gap-3">
                 <Pill className="w-5 h-5 text-brand" style={{ color: "var(--brand)" }} />
                 <div className="text-sm">{confirm.name} — <b>{confirm.type}</b></div>

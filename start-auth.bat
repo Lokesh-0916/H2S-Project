@@ -1,5 +1,5 @@
 @echo off
-title MedSmart Auth Server
+title PharmaLink Auth Server
 
 :: Start MongoDB in a separate window
 echo Starting MongoDB...

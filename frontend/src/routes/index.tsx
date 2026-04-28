@@ -9,9 +9,9 @@ import { PatientDashboard, HealthAlerts, MedicineSearch, PurchaseHistory } from 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "MedSmart — Healthcare Supply Intelligence" },
+      { title: "PharmaLink — Healthcare Supply Intelligence" },
       { name: "description", content: "Real-time disease intelligence, AI-powered demand forecasting and generic medicine discovery for pharmacies and patients." },
-      { property: "og:title", content: "MedSmart — Healthcare Supply Intelligence" },
+      { property: "og:title", content: "PharmaLink — Healthcare Supply Intelligence" },
       { property: "og:description", content: "Smart pharmacy operations and patient savings, in one platform." },
     ],
   }),

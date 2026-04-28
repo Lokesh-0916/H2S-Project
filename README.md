@@ -1,4 +1,4 @@
-# 🏥 MedSmart — Smart Healthcare Supply Intelligence
+# 🏥 PharmaLink — Smart Healthcare Supply Intelligence
 
 [![Node.js](https://img.shields.io/badge/Auth-Node.js%20%2B%20Express-green)](https://nodejs.org)
 [![Python](https://img.shields.io/badge/Backend-Python%20%2B%20Flask-blue)](https://flask.palletsprojects.com)
@@ -9,7 +9,7 @@
 
 ## 📌 Overview
 
-**MedSmart** is a full-stack healthcare supply intelligence platform that connects pharmacies and patients through real-time disease monitoring, AI-powered demand forecasting, inventory management, and generic medicine discovery.
+**PharmaLink** is a full-stack healthcare supply intelligence platform that connects pharmacies and patients through real-time disease monitoring, AI-powered demand forecasting, inventory management, and generic medicine discovery.
 
 This is a working prototype with:
 - A **React + Vite** frontend with dark mode, animations, and role-based dashboards
@@ -26,7 +26,7 @@ Healthcare supply chains struggle with:
 - **Price opacity** — patients don't know cheaper generic alternatives exist
 - **Fragmented inventory** — pharmacies can't see or share surplus stock
 
-MedSmart solves all three with a unified platform for pharmacies and patients.
+PharmaLink solves all three with a unified platform for pharmacies and patients.
 
 ---
 
@@ -65,10 +65,10 @@ MedSmart solves all three with a unified platform for pharmacies and patients.
 User Browser (React + Vite — Port 8080)
        │
        ├──► Auth Server (Node.js + Express — Port 3001)
-       │         └── MongoDB Atlas (medsmart DB — users, profiles)
+       │         └── MongoDB Atlas (pharmalink DB — users, profiles)
        │
        └──► Backend (Python + Flask — Port 5000)
-                 └── MongoDB Atlas (medsmart DB — medicines, inventory, diseases)
+                 └── MongoDB Atlas (pharmalink DB — medicines, inventory, diseases)
 ```
 
 ---
@@ -103,7 +103,7 @@ cd H2S-Project
 **Auth Server** (`auth-server/.env`):
 ```env
 PORT=3001
-MONGO_URI=mongodb+srv://<user>:<password>@<cluster>.mongodb.net/medsmart
+MONGO_URI=mongodb+srv://<user>:<password>@<cluster>.mongodb.net/pharmalink
 JWT_SECRET=your_secret_key
 JWT_EXPIRES_IN=8h
 FRONTEND_URL=http://localhost:5173
@@ -112,7 +112,7 @@ NODE_ENV=development
 
 **Backend** (`backend/.env`):
 ```env
-MONGO_URI=mongodb+srv://<user>:<password>@<cluster>.mongodb.net/medsmart
+MONGO_URI=mongodb+srv://<user>:<password>@<cluster>.mongodb.net/pharmalink
 ```
 
 ### 3. Install dependencies

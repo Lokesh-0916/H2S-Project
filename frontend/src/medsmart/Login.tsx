@@ -178,7 +178,7 @@ export default function Login() {
               <Activity className="w-6 h-6 text-white" />
             </div>
             <div>
-              <div className="font-display font-bold text-xl">MedSmart</div>
+              <div className="font-display font-bold text-xl">PharmaLink</div>
               <div className="text-xs text-muted-foreground">Healthcare Supply Intelligence</div>
             </div>
           </div>
@@ -197,7 +197,7 @@ export default function Login() {
               ))}
             </div>
           </div>
-          <div className="text-xs text-muted-foreground">© 2025 MedSmart. Compliant with healthcare data standards.</div>
+          <div className="text-xs text-muted-foreground">© 2025 PharmaLink. Compliant with healthcare data standards.</div>
         </div>
 
         {/* Forms */}
@@ -205,7 +205,7 @@ export default function Login() {
           <motion.div layout className="w-full max-w-md glass-strong rounded-3xl p-8 shadow-glow">
             <div className="lg:hidden flex items-center gap-2 mb-6">
               <div className="w-9 h-9 rounded-lg gradient-brand grid place-items-center"><Activity className="w-5 h-5 text-white" /></div>
-              <span className="font-display font-bold text-lg">MedSmart</span>
+              <span className="font-display font-bold text-lg">PharmaLink</span>
             </div>
             <AnimatePresence mode="wait">
               {mode === "landing" && (

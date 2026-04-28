@@ -57,7 +57,7 @@ const path = require('path'); // kept for potential future use
 
 // ── Health check ──────────────────────────────────────────
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'MedSmart Auth Server — Running', version: '1.0.0', time: new Date().toISOString() });
+  res.json({ status: 'PharmaLink Auth Server — Running', version: '1.0.0', time: new Date().toISOString() });
 });
 
 // ── 404 Catch-all ─────────────────────────────────────────
@@ -72,12 +72,12 @@ app.use((err, req, res, next) => {
 });
 
 // ── MongoDB connection ────────────────────────────────────
-mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/medsmart', {
+mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/pharmalink', {
   serverSelectionTimeoutMS: 5000,
 })
 .then(() => {
   console.log('');
-  console.log('  ✅  MongoDB connected — medsmart');
+  console.log('  ✅  MongoDB connected — pharmalink');
   app.listen(PORT, () => {
     console.log(`  🚀  Auth server running on http://localhost:${PORT}`);
     console.log('');

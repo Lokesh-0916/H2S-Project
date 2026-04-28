@@ -1,9 +1,9 @@
 @echo off
 setlocal
-title MedSmart — Startup Manager
+title PharmaLink — Startup Manager
 
 echo ===================================================
-echo   MedSmart — Smart Healthcare Startup Script
+echo   PharmaLink — Smart Healthcare Startup Script
 echo ===================================================
 echo.
 
@@ -37,16 +37,16 @@ echo [OK] Using: %PY_CMD%
 echo [3/3] Starting all services...
 
 :: Auth Server (Node.js / Express)
-start "MedSmart - Auth Server" cmd /k "cd /d "%~dp0auth-server" && npm install && node server.js"
+start "PharmaLink - Auth Server" cmd /k "cd /d "%~dp0auth-server" && npm install && node server.js"
 
 :: Backend (Python / Flask)
-start "MedSmart - Backend" cmd /k "cd /d "%~dp0backend" && %PY_CMD% app.py"
+start "PharmaLink - Backend" cmd /k "cd /d "%~dp0backend" && %PY_CMD% app.py"
 
 :: Give servers 4 seconds to init
 timeout /t 4 /nobreak >nul
 
 :: Frontend (Vite dev server)
-start "MedSmart - Frontend" cmd /k "cd /d "%~dp0frontend" && npm install && npm run dev"
+start "PharmaLink - Frontend" cmd /k "cd /d "%~dp0frontend" && npm install && npm run dev"
 
 echo.
 echo ===================================================

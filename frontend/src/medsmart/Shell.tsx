@@ -82,7 +82,7 @@ export default function Shell({ children }: { children: ReactNode }) {
             <Activity className="w-5 h-5 text-white" />
           </div>
           {!collapsed && <div className="min-w-0">
-            <div className="font-display font-bold leading-tight">MedSmart</div>
+            <div className="font-display font-bold leading-tight">PharmaLink</div>
             <div className="text-[10px] uppercase tracking-wider text-muted-foreground truncate">{user?.role === "store" ? "Pharmacy Console" : "Patient Portal"}</div>
           </div>}
           <button onClick={() => setMobileOpen(false)} className="lg:hidden ml-auto"><X className="w-5 h-5" /></button>

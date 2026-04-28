@@ -1,7 +1,7 @@
 {
-  "name": "medsmart-auth-server",
+  "name": "pharmalink-auth-server",
   "version": "1.0.0",
-  "description": "MedSmart Authentication Server — JWT, MongoDB, OAuth-ready",
+  "description": "PharmaLink Authentication Server — JWT, MongoDB, OAuth-ready",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

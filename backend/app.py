@@ -14,7 +14,7 @@ CORS(app)
 # ─── MONGO SETUP ──────────────────────────────────────────────────
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
 client = pymongo.MongoClient(MONGO_URI)
-db = client["medsmart"]
+db = client["pharmalink"]
 external_data_col = db["external_health_data"]
 inventory_col     = db["inventory"]
 medicines_col     = db["medicines"]
@@ -65,7 +65,7 @@ FRAUD_PATTERNS = ["fakebank", "0000000", "med-p1us", "apollo_pharma@ok", "fake",
 
 @app.route("/")
 def home():
-    return jsonify({"status": "MedSmart Backend — Running", "db": "Connected" if client else "Error"})
+    return jsonify({"status": "PharmaLink Backend — Running", "db": "Connected" if client else "Error"})
 
 @app.route("/api/sync", methods=["POST"])
 def sync_data():
@@ -611,7 +611,7 @@ def _user_id_from_token():
         return None
     token = auth.split(" ", 1)[1]
     try:
-        secret = os.getenv("JWT_SECRET", "medsmart_secret_key_2024")
+        secret = os.getenv("JWT_SECRET", "pharmalink_secret_key_2024")
         payload = pyjwt.decode(token, secret, algorithms=["HS256"])
         return str(payload.get("userId") or payload.get("id") or "")
     except Exception:
@@ -771,7 +771,7 @@ def auto_seed():
 
 if __name__ == "__main__":
     print("="*50)
-    print("MedSmart Backend Starting...")
+    print("PharmaLink Backend Starting...")
     auto_seed()
     print("="*50)
     app.run(debug=True, port=5000)

@@ -52,7 +52,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
 
       // Restore session from sessionStorage
-      const raw = sessionStorage.getItem("medsmart-user");
+      const raw = sessionStorage.getItem("pharmalink-user");
       if (raw) {
         const saved: User = JSON.parse(raw);
         setUser(saved);
@@ -60,7 +60,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (saved.token) fetchAndMergeProfile(saved);
       }
 
-      const t = (sessionStorage.getItem("medsmart-theme") as Theme) || "dark";
+      const t = (sessionStorage.getItem("pharmalink-theme") as Theme) || "dark";
       setTheme(t);
     } catch (e) {
       console.error("Session restore error:", e);
@@ -69,7 +69,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
-    try { sessionStorage.setItem("medsmart-theme", theme); } catch {}
+    try { sessionStorage.setItem("pharmalink-theme", theme); } catch {}
   }, [theme]);
 
   // ── Fetch full profile from /profile and merge into user ─
@@ -107,7 +107,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   function persistUser(u: User) {
     setUser(u);
     setSection("dashboard");
-    try { sessionStorage.setItem("medsmart-user", JSON.stringify(u)); } catch {}
+    try { sessionStorage.setItem("pharmalink-user", JSON.stringify(u)); } catch {}
   }
 
   const login = (u: User) => {
@@ -120,7 +120,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const logout = () => {
     setUser(null);
-    try { sessionStorage.removeItem("medsmart-user"); } catch {}
+    try { sessionStorage.removeItem("pharmalink-user"); } catch {}
   };
 
   const toggleTheme = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
@@ -130,7 +130,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setUser((prev) => {
       if (!prev) return prev;
       const updated = { ...prev, ...fields };
-      try { sessionStorage.setItem("medsmart-user", JSON.stringify(updated)); } catch {}
+      try { sessionStorage.setItem("pharmalink-user", JSON.stringify(updated)); } catch {}
       return updated;
     });
   };
