@@ -4,6 +4,7 @@ import { Activity, LayoutDashboard, Stethoscope, TrendingUp, Sparkles, Package, 
 import { useApp } from "./AppContext";
 import { alerts as staticAlerts } from "./data";
 import { cn } from "@/lib/utils";
+import ChatBot from "@/medsmart/shared/ChatBot";
 
 const storeNav = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -179,22 +180,7 @@ export default function Shell({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        {/* Service health banner */}
-        {(svcStatus.auth !== null || svcStatus.backend !== null) && (
-          <div className="flex items-center gap-3 px-4 lg:px-8 py-1.5 text-[11px] border-b bg-card/40 backdrop-blur">
-            <span className="text-muted-foreground font-medium">Services:</span>
-            <span className={`flex items-center gap-1 font-medium ${svcStatus.auth ? "text-success" : "text-danger"}`} style={{ color: svcStatus.auth ? "var(--success)" : "var(--danger)" }}>
-              <span className={`w-1.5 h-1.5 rounded-full ${svcStatus.auth ? "bg-success" : "bg-danger"}`} style={{ background: svcStatus.auth ? "var(--success)" : "var(--danger)" }} />
-              Auth {svcStatus.auth ? "Online" : "Offline"}
-            </span>
-            <span className={`flex items-center gap-1 font-medium`} style={{ color: svcStatus.backend ? "var(--success)" : "var(--danger)" }}>
-              <span className="w-1.5 h-1.5 rounded-full" style={{ background: svcStatus.backend ? "var(--success)" : "var(--danger)" }} />
-              Backend {svcStatus.backend ? "Online" : "Offline"}
-            </span>
-            {svcStatus.auth && svcStatus.backend && <span className="ml-auto text-muted-foreground">✅ All systems operational</span>}
-            {(!svcStatus.auth || !svcStatus.backend) && <span className="ml-auto" style={{ color: "var(--amber)" }}>⚠️ Demo mode active for offline services</span>}
-          </div>
-        )}
+
 
         <main className="flex-1 p-4 lg:p-8 overflow-x-hidden">
           <AnimatePresence mode="wait">
@@ -208,6 +194,9 @@ export default function Shell({ children }: { children: ReactNode }) {
       <AnimatePresence>
         {profileModal && <ProfileModal onClose={() => setProfileModal(false)} />}
       </AnimatePresence>
+
+      {/* Gemini chatbot — always visible when logged in */}
+      <ChatBot />
     </div>
   );
 }

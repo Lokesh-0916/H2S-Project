@@ -5,6 +5,7 @@ import { useApp } from "./AppContext";
 import { useToast } from "./shared/Toast";
 import { pharmacies } from "./data";
 import { cn } from "@/lib/utils";
+import ChatBot from "@/medsmart/shared/ChatBot";
 
 type Mode = "landing" | "store" | "patient";
 type StoreSub = "chain" | "local-login" | "local-register";
@@ -168,7 +169,8 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen relative overflow-hidden gradient-radial">
+    <>
+      <div className="min-h-screen relative overflow-hidden gradient-radial">
       <div className="absolute inset-0 bg-grid opacity-40 pointer-events-none" />
       <div className="relative z-10 grid lg:grid-cols-2 min-h-screen">
         {/* Brand */}
@@ -334,7 +336,11 @@ export default function Login() {
           </motion.div>
         </div>
       </div>
-    </div>
+      </div>
+
+      {/* Gemini chatbot — public support on login page */}
+      <ChatBot />
+    </>
   );
 }
 

@@ -728,6 +728,155 @@ def ai_suggestions():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
+# ─── GEMINI CHATBOT ──────────────────────────────────────────────
+
+# API key chaining — tries each key; moves to next on quota/rate errors
+GEMINI_KEYS = [
+    os.getenv("GEMINI_API_KEY_1", ""),
+    os.getenv("GEMINI_API_KEY_2", ""),
+    os.getenv("GEMINI_API_KEY_3", ""),
+]
+
+PHARMALINK_PUBLIC_PROMPT = """You are PharmaLink's friendly customer support assistant.
+
+PharmaLink is a Smart Healthcare Supply Intelligence platform connecting pharmacies and patients through:
+- Real-time disease monitoring and outbreak tracking
+- AI-powered medicine demand forecasting (ML-based)
+- Pharmacy inventory management and stock transfers
+- Generic medicine discovery (find cheaper alternatives to branded medicines)
+
+FOR PHARMACIES: Disease Monitor, AI Demand Forecast, Inventory Management, Stock Transfers, Auto-Redistribution, Analytics.
+FOR PATIENTS: Health Alerts, Medicine Search (generics), Purchase History.
+AUTHENTICATION: Patients use email+password. Pharmacies use PIN (Apollo/MedPlus/Jan Aushadhi) or email. Google OAuth also available.
+
+Answer questions about PharmaLink — its purpose, features, and how to use it. Be concise, helpful, and friendly.
+For unrelated questions, politely redirect to PharmaLink topics."""
+
+@app.route("/api/chat", methods=["POST"])
+def chat():
+    try:
+        import google.generativeai as genai
+
+        data = request.json or {}
+        messages = data.get("messages", [])
+        context  = data.get("context", "public")   # public | patient | store
+        ud       = data.get("userData", {})
+
+        if not messages:
+            return jsonify({"error": "No messages provided"}), 400
+
+        # ── Build context-aware system prompt ────────────────────
+        if context == "patient":
+            purchases = ud.get("purchases", [])
+            alerts    = ud.get("alerts", [])
+            pur_lines = "\n".join(
+                f"- {p.get('medicine','')} ({p.get('type','')}) ₹{p.get('price',0)}, saved ₹{p.get('saved',0)} on {p.get('date','')}"
+                for p in purchases[:10]
+            ) or "No purchases yet."
+            alt_lines = "\n".join(
+                f"- {a.get('title','')}: {a.get('message','')} (severity: {a.get('severity','')})"
+                for a in alerts[:5]
+            ) or "No active alerts."
+            system_prompt = f"""You are PharmaLink's personal health assistant.
+
+PATIENT PROFILE:
+- Name: {ud.get('name','User')}
+- Email: {ud.get('email','')}
+- Age: {ud.get('age','Not set')}
+- Gender: {ud.get('gender','Not set')}
+- Address: {ud.get('address','Not set')}
+
+RECENT PURCHASE HISTORY:
+{pur_lines}
+
+HEALTH ALERTS:
+{alt_lines}
+
+Help the patient with their purchase history, generic medicine alternatives, health alerts, and platform navigation.
+Always remind them to consult a doctor for medical decisions. Be warm, personalized, and concise."""
+
+        elif context == "store":
+            inventory = ud.get("inventory", [])
+            alerts    = ud.get("alerts", [])
+            inv_lines = "\n".join(
+                f"- {i.get('medicine','')}: {i.get('stock',0)} units (threshold: {i.get('threshold',0)})"
+                for i in inventory[:15]
+            ) or "No inventory data."
+            alt_lines = "\n".join(
+                f"- {a.get('medicine','')} at {a.get('pharmacy','')}: {a.get('stock',0)} units ({a.get('severity','')})"
+                for a in alerts[:5]
+            ) or "No critical alerts."
+            system_prompt = f"""You are PharmaLink's pharmacy operations assistant.
+
+STORE INFO:
+- Store Name: {ud.get('storeName','Your Store')}
+- Store ID: {ud.get('storeId','')}
+
+CURRENT INVENTORY (top items):
+{inv_lines}
+
+STOCK ALERTS:
+{alt_lines}
+
+Help the pharmacy manager with inventory decisions, demand forecasting, stock transfers, and platform navigation.
+Be professional, data-driven, and give actionable recommendations."""
+
+        else:
+            system_prompt = PHARMALINK_PUBLIC_PROMPT
+
+        # ── Format history for Gemini ────────────────────────────
+        user_message = messages[-1].get("content", "") if messages else ""
+        history_contents = []
+        for m in messages[:-1]:
+            history_contents.append({
+                "role": "user" if m.get("role") == "user" else "model",
+                "parts": [{"text": m.get("content", "")}]
+            })
+
+        # ── API key chaining (new google-genai SDK) ───────────────
+        last_error = None
+        for key in GEMINI_KEYS:
+            if not key or not key.strip():
+                continue
+            try:
+                from google import genai as ggenai
+                from google.genai import types as gtypes
+
+                client = ggenai.Client(api_key=key)
+
+                chat = client.chats.create(
+                    model="gemini-2.0-flash",
+                    config=gtypes.GenerateContentConfig(
+                        system_instruction=system_prompt,
+                    ),
+                    history=[
+                        gtypes.Content(
+                            role=h["role"],
+                            parts=[gtypes.Part(text=h["parts"][0]["text"])]
+                        ) for h in history_contents
+                    ]
+                )
+                response = chat.send_message(user_message)
+                return jsonify({"reply": response.text, "status": "ok"})
+            except Exception as e:
+                err = str(e).lower()
+                if any(x in err for x in ["quota", "rate", "429", "exhausted", "limit", "resource", "invalid", "key", "permission", "403", "400", "404"]):
+                    last_error = str(e)
+                    continue          # try next key
+                return jsonify({"error": f"AI error: {str(e)}"}), 500
+
+        # All keys exhausted
+        return jsonify({
+            "error": f"All API keys failed. Last error: {last_error}",
+            "status": "quota_exceeded"
+        }), 429
+
+    except ImportError:
+        return jsonify({"error": "Run: pip install google-generativeai"}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 # ─── AUTO-SEEDING LOGIC ──────────────────────────────────────────
 
 def auto_seed():
