@@ -40,6 +40,7 @@ function GraphLoading({ height = "h-64" }: { height?: string }) {
 }
 
 export function StoreDashboard() {
+  const { user } = useApp();
   const [lowStock, setLowStock] = useState<any[]>([]);
   const [liveTrend, setLiveTrend] = useState<any[]>(trendData);
   const [liveDonut, setLiveDonut] = useState<any[]>(demandDonut);
@@ -48,12 +49,15 @@ export function StoreDashboard() {
   const [loadingDonut, setLoadingDonut] = useState(true);
 
   useEffect(() => {
+    const zone = encodeURIComponent((user?.region || "India").replace(/\s+Zone$/i, ""));
     let alive = true;
+    setLoadingTrend(true);
+    setLoadingDonut(true);
     const load = async () => {
       try {
         const [stockRes, trendRes, donutRes, statsRes] = await Promise.all([
           fetch(`${BACKEND_URL}/api/stock-alerts`),
-          fetch(`${BACKEND_URL}/api/live-trend-data`),
+          fetch(`${BACKEND_URL}/api/live-trend-data?zone=${zone}`),
           fetch(`${BACKEND_URL}/api/demand-distribution`),
           fetch(`${BACKEND_URL}/api/platform-stats`),
         ]);
@@ -82,7 +86,7 @@ export function StoreDashboard() {
       alive = false;
       clearInterval(id);
     };
-  }, []);
+  }, [user?.region]);
 
   return (
     <div className="space-y-6">
@@ -182,18 +186,21 @@ export function StoreDashboard() {
 
 export function DiseaseMonitor() {
   const { push } = useToast();
+  const { user } = useApp();
   const [reports, setReports] = useState<DiseaseReport[]>(initialDiseases);
   const [liveTrend, setLiveTrend] = useState<any[]>([]);
   const [loadingTrend, setLoadingTrend] = useState(true);
   const [form, setForm] = useState({ disease: "", cases: "", source: "" });
 
   useEffect(() => {
+    const zone = encodeURIComponent((user?.region || "India").replace(/\s+Zone$/i, ""));
     let alive = true;
+    setLoadingTrend(true);
     const load = async () => {
       try {
         const [reportsRes, trendRes] = await Promise.all([
-          fetch(`${BACKEND_URL}/api/live-disease-reports`),
-          fetch(`${BACKEND_URL}/api/live-trend-data`),
+          fetch(`${BACKEND_URL}/api/live-disease-reports?zone=${zone}`),
+          fetch(`${BACKEND_URL}/api/live-trend-data?zone=${zone}`),
         ]);
         const reportsData = reportsRes.ok ? await reportsRes.json() : [];
         const trendData = trendRes.ok ? await trendRes.json() : [];
@@ -213,7 +220,7 @@ export function DiseaseMonitor() {
       alive = false;
       clearInterval(id);
     };
-  }, []);
+  }, [user?.region]);
 
   function add() {
     if (!form.disease || !form.cases) return push("error", "Disease and case count required");
@@ -427,6 +434,7 @@ export function DemandForecast() {
 }
 
 export function AISuggestions() {
+  const { user } = useApp();
   const [recs, setRecs] = useState<any[]>([]);
   const [stats, setStats] = useState({ trend: "Loading", velocity: "…", criticalItems: 0, confidence: 94 });
   const [purchaseTrend, setPurchaseTrend] = useState([
@@ -434,7 +442,10 @@ export function AISuggestions() {
   ]);
 
   useEffect(() => {
-    fetch(`${BACKEND_URL}/api/ai-suggestions`)
+    // Zone-scoped demand signals for better recommendations
+    // (falls back to India if not set)
+    const zone = encodeURIComponent((user?.region || "India").replace(/\s+Zone$/i, ""));
+    fetch(`${BACKEND_URL}/api/ai-suggestions?zone=${zone}`)
       .then(r => r.json())
       .then(d => {
         if (d.suggestions) setRecs(d.suggestions);
@@ -456,7 +467,7 @@ export function AISuggestions() {
         if (trend.length > 0) setPurchaseTrend(trend);
       })
       .catch(() => {});
-  }, []);
+  }, [user?.region]);
 
   return (
     <div className="space-y-6">
@@ -887,6 +898,7 @@ export function AutoRedistribute() {
 }
 
 export function Analytics() {
+  const { user } = useApp();
   const [topMeds, setTopMeds] = useState(medicines.slice(0, 6).map(m => ({ name: m.generic, demand: 50 })));
   const [liveTrend, setLiveTrend] = useState<any[]>(trendData);
   const [loadingTrend, setLoadingTrend] = useState(true);
@@ -908,7 +920,9 @@ export function Analytics() {
       }).catch(() => {});
 
     // Live 7-day trend
-    fetch(`${BACKEND_URL}/api/live-trend-data`)
+    const zone = encodeURIComponent((user?.region || "India").replace(/\s+Zone$/i, ""));
+    setLoadingTrend(true);
+    fetch(`${BACKEND_URL}/api/live-trend-data?zone=${zone}`)
       .then(r => r.json())
       .then(d => { if (Array.isArray(d) && d.length) setLiveTrend(d); })
       .catch(() => {})
@@ -937,7 +951,7 @@ export function Analytics() {
         }));
         if (health.length > 0) setInventoryHealth(health);
       }).catch(() => {});
-  }, []);
+  }, [user?.region]);
 
 
   return (

@@ -38,7 +38,7 @@ const titles: Record<string, { t: string; s: string }> = {
 };
 
 export default function Shell({ children }: { children: ReactNode }) {
-  const { user, theme, toggleTheme, logout, section, setSection, updateProfile } = useApp();
+  const { user, theme, toggleTheme, logout, section, setSection, updateProfile, setRegion } = useApp();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [showAlerts, setShowAlerts] = useState(false);
@@ -49,6 +49,23 @@ export default function Shell({ children }: { children: ReactNode }) {
   const title = titles[section] || { t: section, s: "" };
 
   const [liveAlerts, setLiveAlerts] = useState<typeof staticAlerts>(staticAlerts);
+  const zoneOptions = [
+    "Bengaluru",
+    "Mumbai",
+    "Delhi",
+    "Hyderabad",
+    "Chennai",
+    "Kolkata",
+    "Pune",
+    "Ahmedabad",
+    "Jaipur",
+    "Lucknow",
+    "Bhopal",
+    "Patna",
+    "Guwahati",
+    "Chandigarh",
+    "Kochi",
+  ];
 
   useEffect(() => {
     fetch("http://localhost:5000/api/patient-alerts")
@@ -143,8 +160,17 @@ export default function Shell({ children }: { children: ReactNode }) {
               <h1 className="font-display font-bold text-lg leading-tight truncate">{title.t}</h1>
               <div className="text-xs text-muted-foreground truncate">{title.s}</div>
             </div>
-            <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full glass text-xs">
-              <MapPin className="w-3.5 h-3.5 text-teal" />{user?.region || "Bengaluru Zone"}
+            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full glass text-xs">
+              <MapPin className="w-3.5 h-3.5 text-teal" />
+              <select
+                value={(user?.region || "Bengaluru").replace(/\\s+Zone$/i, "").replace(/^India$/i, "Bengaluru")}
+                onChange={(e) => setRegion(e.target.value)}
+                className="bg-card/70 border border-border rounded-lg px-2 py-1 text-xs text-foreground outline-none"
+              >
+                {zoneOptions.map((z) => (
+                  <option key={z} value={z}>{z}</option>
+                ))}
+              </select>
             </div>
             <div className="relative">
               <button onClick={() => setShowAlerts(s => !s)} className="w-9 h-9 rounded-lg hover:bg-accent grid place-items-center relative">

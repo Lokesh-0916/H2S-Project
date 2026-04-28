@@ -13,6 +13,7 @@ interface Ctx {
   logout: () => void;
   setSection: (s: string) => void;
   updateProfile: (fields: Partial<User>) => void;
+  setRegion: (region: string) => void;
 }
 const AppCtx = createContext<Ctx | null>(null);
 
@@ -135,8 +136,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  const setRegion = (region: string) => updateProfile({ region });
+
   return (
-    <AppCtx.Provider value={{ user, theme, section, toggleTheme, login, logout, setSection, updateProfile }}>
+    <AppCtx.Provider value={{ user, theme, section, toggleTheme, login, logout, setSection, updateProfile, setRegion }}>
       {children}
     </AppCtx.Provider>
   );

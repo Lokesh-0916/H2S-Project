@@ -17,6 +17,7 @@ function useLivePatientData() {
   const [liveDiseases, setLiveDiseases]   = useState(staticDiseaseReports);
 
   useEffect(() => {
+    const zone = encodeURIComponent((user?.region || "India").replace(/\s+Zone$/i, ""));
     // Global alerts — no auth needed
     fetch(`${BACKEND_URL}/api/patient-alerts`)
       .then(r => r.json()).then(d => { if (Array.isArray(d) && d.length) setLiveAlerts(d); }).catch(() => {});
@@ -33,14 +34,14 @@ function useLivePatientData() {
     const onPurchaseRecorded = () => loadPurchases();
     window.addEventListener("purchase-recorded", onPurchaseRecorded);
 
-    // Global disease reports — no auth needed
-    fetch(`${BACKEND_URL}/api/disease-reports`)
+    // Zone-scoped disease activity — no auth needed
+    fetch(`${BACKEND_URL}/api/live-disease-reports?zone=${zone}`)
       .then(r => r.json()).then(d => { if (Array.isArray(d) && d.length) setLiveDiseases(d); }).catch(() => {});
 
     return () => {
       window.removeEventListener("purchase-recorded", onPurchaseRecorded);
     };
-  }, [user?.token]);
+  }, [user?.token, user?.region]);
 
   return { liveAlerts, livePurchases, liveDiseases };
 }

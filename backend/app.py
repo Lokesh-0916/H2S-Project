@@ -31,11 +31,9 @@ purchases_col     = db["purchases"]
 patient_alerts_col= db["patient_alerts"]
 
 # ─── LIVE DISEASE DATA CACHE ──────────────────────────────────────
-LIVE_DISEASE_CACHE = {
-    "ts": 0.0,
-    "reports": [],
-    "trend": [],
-}
+# Cache per zone so switching locations is instant.
+# Shape: { "<zone>": { "ts": float, "reports": [...], "trend": [...] } }
+LIVE_DISEASE_CACHE: dict = {}
 LIVE_DISEASE_TTL_SEC = 120  # refresh every 2 minutes max
 
 # ─── MASTER DATA (Initial Lists for Seeding) ──────────────────────
@@ -578,7 +576,7 @@ def get_trend_data():
 
 @app.route("/api/demand-distribution", methods=["GET"])
 def demand_distribution():
-    """Computes medicine category demand distribution from inventory."""
+    """Computes category demand distribution from inventory (velocity + shortage)."""
     try:
         CATEGORY_COLORS = {
             "Antibiotic":    "var(--brand)",
@@ -588,14 +586,23 @@ def demand_distribution():
             "Antihistamine": "var(--success)",
             "Cardiac":       "#a78bfa",
         }
-        # Group inventory sold by medicine category
-        all_inv  = list(inventory_col.find({}, {"_id": 0, "medicine": 1, "sold": 1}))
+        # Group by medicine category using a practical demand signal:
+        # - sales velocity proxy (sold)
+        # - shortage pressure (threshold - stock)
+        all_inv  = list(inventory_col.find({}, {"_id": 0, "medicine": 1, "sold": 1, "stock": 1, "threshold": 1}))
         all_meds = {m["generic"]: m.get("category", "Other") for m in medicines_col.find({}, {"_id": 0})}
 
         cat_totals: dict = {}
         for item in all_inv:
             cat = all_meds.get(item["medicine"], "Other")
-            cat_totals[cat] = cat_totals.get(cat, 0) + max(item.get("sold", 0), 1)
+            sold = int(item.get("sold", 0) or 0)
+            stock = int(item.get("stock", 0) or 0)
+            threshold = int(item.get("threshold", 0) or 0)
+            shortage = max(0, threshold - stock)
+
+            # Weight shortage more so categories with actual need stand out.
+            score = (sold * 1.0) + (shortage * 2.0)
+            cat_totals[cat] = cat_totals.get(cat, 0) + score
 
         total = sum(cat_totals.values()) or 1
         result = [
@@ -690,9 +697,46 @@ def _to_severity(score: int) -> str:
     return "low"
 
 
-def _fetch_live_disease_payload():
+def _normalize_zone(zone: str | None) -> str:
+    z = (zone or "").strip()
+    if not z:
+        return "India"
+    # UI sometimes stores "X Zone"
+    if z.lower().endswith(" zone"):
+        z = z[:-5].strip()
+    return z or "India"
+
+
+# Common India locations + synonyms for better matching in news feeds
+ZONE_SYNONYMS = {
+    "Bengaluru": ["Bengaluru", "Bangalore", "Karnataka"],
+    "Mumbai": ["Mumbai", "Bombay", "Maharashtra"],
+    "Delhi": ["Delhi", "New Delhi", "NCR", "Gurgaon", "Noida"],
+    "Hyderabad": ["Hyderabad", "Telangana"],
+    "Chennai": ["Chennai", "Tamil Nadu"],
+    "Kolkata": ["Kolkata", "Calcutta", "West Bengal"],
+    "Pune": ["Pune", "Maharashtra"],
+    "Ahmedabad": ["Ahmedabad", "Gujarat"],
+    "Jaipur": ["Jaipur", "Rajasthan"],
+    "Lucknow": ["Lucknow", "Uttar Pradesh"],
+    "Bhopal": ["Bhopal", "Madhya Pradesh"],
+    "Patna": ["Patna", "Bihar"],
+    "Guwahati": ["Guwahati", "Assam"],
+    "Chandigarh": ["Chandigarh", "Punjab", "Haryana"],
+    "Kochi": ["Kochi", "Cochin", "Kerala"],
+}
+
+
+def _geo_terms_for_zone(zone: str) -> list[str]:
+    if not zone or zone.lower() == "india":
+        return []
+    # If exact key exists, use synonyms; else use the zone as-is.
+    return ZONE_SYNONYMS.get(zone, [zone])
+
+
+def _fetch_live_disease_payload(zone: str):
     """
-    Fetches Bengaluru-zone, multi-disease live signals from news mentions.
+    Fetches zone-scoped, multi-disease live signals from news mentions.
     Note: this is outbreak/activity intelligence, not clinical case registry data.
     """
     disease_patterns = {
@@ -733,10 +777,15 @@ def _fetch_live_disease_payload():
         for k in disease_patterns.keys()
     }
 
+    geo_terms = _geo_terms_for_zone(zone)
+    geo_clause = f"({' OR '.join(geo_terms)})" if geo_terms else ""
+
     def _fetch_mentions_for_disease(d_key: str, terms: list[str]):
-        # Geo-focus to Bengaluru/Karnataka for "zone" level signal
-        geo = "(Bengaluru OR Bangalore OR Karnataka)"
-        query = requests.utils.quote(f"({' OR '.join(terms)}) {geo} when:7d")
+        # Geo-focus if a zone is selected; else India-wide.
+        query_string = f"({' OR '.join(terms)})"
+        if geo_clause:
+            query_string = f"{query_string} {geo_clause}"
+        query = requests.utils.quote(f"{query_string} when:7d")
         url = f"https://news.google.com/rss/search?q={query}&hl=en-IN&gl=IN&ceid=IN:en"
         r = requests.get(url, timeout=12)
         r.raise_for_status()
@@ -793,7 +842,7 @@ def _fetch_live_disease_payload():
             "cases": int(score),
             "growth": growth_pct,
             "severity": "high" if score >= 12 else "medium" if score >= 5 else "low",
-            "source": "Google News RSS — Bengaluru zone",
+            "source": f"Google News RSS — {zone}",
             "date": time.strftime("%Y-%m-%d"),
             "trend": "Rising" if growth_pct > 0 else "Stable",
         })
@@ -801,27 +850,25 @@ def _fetch_live_disease_payload():
     return {"reports": reports, "trend": trend}
 
 
-def _get_live_disease_data():
+def _get_live_disease_data(zone: str | None = None):
+    zone = _normalize_zone(zone)
     now = time.time()
-    if (
-        LIVE_DISEASE_CACHE["reports"]
-        and LIVE_DISEASE_CACHE["trend"]
-        and now - LIVE_DISEASE_CACHE["ts"] < LIVE_DISEASE_TTL_SEC
-    ):
-        return LIVE_DISEASE_CACHE
+    cached = LIVE_DISEASE_CACHE.get(zone)
+    if cached and cached.get("reports") and cached.get("trend") and now - float(cached.get("ts", 0)) < LIVE_DISEASE_TTL_SEC:
+        return cached
 
-    payload = _fetch_live_disease_payload()
-    LIVE_DISEASE_CACHE["ts"] = now
-    LIVE_DISEASE_CACHE["reports"] = payload["reports"]
-    LIVE_DISEASE_CACHE["trend"] = payload["trend"]
-    return LIVE_DISEASE_CACHE
+    payload = _fetch_live_disease_payload(zone)
+    entry = {"ts": now, "reports": payload["reports"], "trend": payload["trend"]}
+    LIVE_DISEASE_CACHE[zone] = entry
+    return entry
 
 
 @app.route("/api/live-disease-reports", methods=["GET"])
 def live_disease_reports():
-    """Returns real-world disease reports (live COVID-19 data)."""
+    """Returns zone-scoped disease activity reports."""
     try:
-        data = _get_live_disease_data()
+        zone = request.args.get("zone")
+        data = _get_live_disease_data(zone)
         return jsonify(data["reports"])
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -829,9 +876,10 @@ def live_disease_reports():
 
 @app.route("/api/live-trend-data", methods=["GET"])
 def live_trend_data():
-    """Returns live global 7-day trend data from disease.sh."""
+    """Returns zone-scoped 7-day trend activity data."""
     try:
-        data = _get_live_disease_data()
+        zone = request.args.get("zone")
+        data = _get_live_disease_data(zone)
         return jsonify(data["trend"])
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -923,7 +971,8 @@ def ai_suggestions():
         }
         trend_last = {}
         try:
-            live = _get_live_disease_data()
+            zone = request.args.get("zone")
+            live = _get_live_disease_data(zone)
             if live.get("trend"):
                 trend_last = live["trend"][-1]
         except Exception:
