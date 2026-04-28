@@ -10,7 +10,7 @@ const BACKEND = "http://localhost:5000";
 
 // Greetings per context
 const greet = {
-  public:  "👋 Hi! I'm the **PharmaLink** support assistant. Ask me anything — how the platform works, features for pharmacies or patients, or how to get started!",
+  public:  "👋 Hi! I'm the **PharmaLink** support assistant. Ask me anything — features for pharmacies or patients, or how to get started!",
   patient: (name: string) => `👋 Hi ${name}! I'm your **PharmaLink** assistant. I can help with your purchase history, generic medicine alternatives, health alerts, and more. What can I help you with?`,
   store:   (name: string) => `👋 Hi ${name}! I'm your **PharmaLink** pharmacy assistant. Ask me about your inventory, stock alerts, demand forecasts, or anything else!`,
 };
@@ -154,10 +154,6 @@ export default function ChatBot() {
                 <div className="text-[11px] text-white/70">
                   {context === "public" ? "Customer Support" : context === "patient" ? "Patient Support" : "Pharmacy Support"}
                 </div>
-              </div>
-              <div className="flex items-center gap-1.5 mr-2">
-                <span className="w-2 h-2 rounded-full bg-green-300 animate-pulse" />
-                <span className="text-xs text-white/80">Online</span>
               </div>
               <button onClick={() => setOpen(false)} className="w-7 h-7 rounded-lg hover:bg-white/20 grid place-items-center transition">
                 <ChevronDown className="w-4 h-4 text-white" />

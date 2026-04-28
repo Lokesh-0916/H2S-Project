@@ -13,7 +13,7 @@ const BACKEND_URL = "http://localhost:5000";
 function useLivePatientData() {
   const { user } = useApp();
   const [liveAlerts, setLiveAlerts]       = useState(staticAlerts);
-  const [livePurchases, setLivePurchases] = useState(staticPurchases);
+  const [livePurchases, setLivePurchases] = useState<any[]>([]);
   const [liveDiseases, setLiveDiseases]   = useState(staticDiseaseReports);
 
   useEffect(() => {
@@ -23,14 +23,23 @@ function useLivePatientData() {
 
     // User-specific purchases — must send JWT so backend filters by userId
     const token = user?.token;
-    fetch(`${BACKEND_URL}/api/purchases`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    })
-      .then(r => r.json()).then(d => { if (Array.isArray(d) && d.length) setLivePurchases(d); }).catch(() => {});
+    const loadPurchases = () => {
+      fetch(`${BACKEND_URL}/api/purchases`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+        .then(r => r.json()).then(d => { if (Array.isArray(d)) setLivePurchases(d); }).catch(() => {});
+    };
+    loadPurchases();
+    const onPurchaseRecorded = () => loadPurchases();
+    window.addEventListener("purchase-recorded", onPurchaseRecorded);
 
     // Global disease reports — no auth needed
     fetch(`${BACKEND_URL}/api/disease-reports`)
       .then(r => r.json()).then(d => { if (Array.isArray(d) && d.length) setLiveDiseases(d); }).catch(() => {});
+
+    return () => {
+      window.removeEventListener("purchase-recorded", onPurchaseRecorded);
+    };
   }, [user?.token]);
 
   return { liveAlerts, livePurchases, liveDiseases };
@@ -164,8 +173,9 @@ export function HealthAlerts() {
 export function MedicineSearch() {
   const { push } = useToast();
   const [q, setQ] = useState("");
+  const { user } = useApp();
   const [scanning, setScanning] = useState(false);
-  const [confirm, setConfirm] = useState<{ name: string; type: "brand" | "generic" } | null>(null);
+  const [confirm, setConfirm] = useState<{ name: string; type: "brand" | "generic"; price: number; saved: number } | null>(null);
   const [dbMeds, setDbMeds] = useState<typeof medicines | null>(null);
   const [loadingMeds, setLoadingMeds] = useState(true);
 
@@ -207,8 +217,10 @@ export function MedicineSearch() {
   const top = filtered.slice(0, 3);
 
   function buy(m: typeof medicines[0], type: "brand" | "generic") {
+    const price = type === "generic" ? m.genericPrice : m.brandPrice;
+    const saved  = type === "generic" ? (m.brandPrice - m.genericPrice) : 0;
     setScanning(true);
-    setTimeout(() => { setScanning(false); setConfirm({ name: m.name, type }); }, 900);
+    setTimeout(() => { setScanning(false); setConfirm({ name: m.name, type, price, saved }); }, 900);
   }
   return (
     <div className="space-y-6">
@@ -244,22 +256,26 @@ export function MedicineSearch() {
                 <Badge variant="success">Save {pct}%</Badge>
               </div>
               <div className="grid grid-cols-2 gap-2 mb-3">
-                <div className="p-3 rounded-lg border bg-card/40">
-                  <div className="text-[10px] uppercase text-muted-foreground">Brand</div>
-                  <div className="text-sm font-medium">{m.brand}</div>
-                  <div className="text-lg font-display font-bold mt-1">₹{m.brandPrice}</div>
+                {/* Brand panel */}
+                <div className="p-3 rounded-lg border bg-card/40 flex flex-col gap-2">
+                  <div>
+                    <div className="text-[10px] uppercase text-muted-foreground">Brand</div>
+                    <div className="text-sm font-medium">{m.brand}</div>
+                    <div className="text-lg font-display font-bold mt-1">₹{m.brandPrice}</div>
+                  </div>
+                  <button onClick={() => buy(m, "brand")} className="w-full py-1.5 rounded-lg border hover:bg-accent text-xs font-medium transition">Buy brand</button>
                 </div>
-                <div className="p-3 rounded-lg border" style={{ background: "color-mix(in oklab, var(--success) 10%, transparent)", borderColor: "color-mix(in oklab, var(--success) 30%, transparent)" }}>
-                  <div className="text-[10px] uppercase text-success" style={{ color: "var(--success)" }}>Generic</div>
-                  <div className="text-sm font-medium">{m.generic}</div>
-                  <div className="text-lg font-display font-bold mt-1" style={{ color: "var(--success)" }}>₹{m.genericPrice}</div>
+                {/* Generic panel */}
+                <div className="p-3 rounded-lg border flex flex-col gap-2" style={{ background: "color-mix(in oklab, var(--success) 10%, transparent)", borderColor: "color-mix(in oklab, var(--success) 30%, transparent)" }}>
+                  <div>
+                    <div className="text-[10px] uppercase" style={{ color: "var(--success)" }}>Generic</div>
+                    <div className="text-sm font-medium">{m.generic}</div>
+                    <div className="text-lg font-display font-bold mt-1" style={{ color: "var(--success)" }}>₹{m.genericPrice}</div>
+                  </div>
+                  <button onClick={() => buy(m, "generic")} className="w-full py-1.5 rounded-lg gradient-brand text-white text-xs font-medium">Buy generic</button>
                 </div>
               </div>
-              <div className="text-xs text-success mb-3" style={{ color: "var(--success)" }}>You save ₹{saved} per pack</div>
-              <div className="flex gap-2">
-                <button onClick={() => buy(m, "generic")} className="flex-1 py-2 rounded-lg gradient-brand text-white text-sm font-medium">Buy generic</button>
-                <button onClick={() => buy(m, "brand")} className="flex-1 py-2 rounded-lg border hover:bg-accent text-sm font-medium">Buy brand</button>
-              </div>
+              <div className="text-xs mb-1" style={{ color: "var(--success)" }}>You save ₹{saved} per pack</div>
             </Card>
           );
         })}
@@ -325,7 +341,30 @@ export function MedicineSearch() {
                 <div className="text-sm">{confirm.name} — <b>{confirm.type}</b></div>
               </div>
               <div className="flex gap-2 mt-4">
-                <button onClick={() => { push("success", `Order placed for ${confirm.name}`); setConfirm(null); }} className="flex-1 py-2 rounded-lg gradient-brand text-white font-medium">I understand, proceed</button>
+                <button onClick={async () => {
+                    if (!user?.token) {
+                      push("error", "Please log in to save your purchase history.");
+                      setConfirm(null);
+                      return;
+                    }
+                    try {
+                      const res = await fetch(`${BACKEND_URL}/api/purchases/record`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", Authorization: `Bearer ${user.token}` },
+                        body: JSON.stringify({ medicine: confirm!.name, type: confirm!.type, price: confirm!.price, saved: confirm!.saved, pharmacy: "PharmaLink" }),
+                      });
+                      if (res.ok) {
+                        push("success", `Order placed for ${confirm!.name}`);
+                        window.dispatchEvent(new Event("purchase-recorded"));
+                      } else {
+                        const err = await res.json().catch(() => ({}));
+                        push("error", err.message || `Failed to save purchase (${res.status})`);
+                      }
+                    } catch (e: any) {
+                      push("error", "Could not connect to backend. Is it running?");
+                    }
+                    setConfirm(null);
+                  }} className="flex-1 py-2 rounded-lg gradient-brand text-white font-medium">I understand, proceed</button>
                 <button onClick={() => setConfirm(null)} className="px-4 py-2 rounded-lg border hover:bg-accent">Cancel</button>
               </div>
             </motion.div>
@@ -364,8 +403,14 @@ export function PurchaseHistory() {
               </tr>
             </thead>
             <tbody>
-              {livePurchases.map((p: any) => (
-                <tr key={p.id} className="border-t hover:bg-accent/30 transition">
+              {livePurchases.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-10 text-center text-muted-foreground text-sm">
+                    No purchases yet. Search for medicines and make your first purchase!
+                  </td>
+                </tr>
+              ) : livePurchases.map((p: any) => (
+                <tr key={p.id || p._id} className="border-t hover:bg-accent/30 transition">
                   <td className="px-4 py-3 text-muted-foreground tabular-nums">{p.date}</td>
                   <td className="px-4 py-3 font-medium">{p.medicine}</td>
                   <td className="px-4 py-3"><Badge variant={p.type === "generic" ? "success" : "amber"}>{p.type}</Badge></td>

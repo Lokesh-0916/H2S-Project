@@ -4,23 +4,39 @@ import math
 import pymongo
 import requests
 import os
+import time
+from datetime import datetime, timedelta
+import xml.etree.ElementTree as ET
 from dotenv import load_dotenv
 
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/api/*": {
+    "origins": "*",
+    "allow_headers": ["Content-Type", "Authorization"],
+    "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    "expose_headers": ["Authorization"],
+}})
 
 # ─── MONGO SETUP ──────────────────────────────────────────────────
-MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
+MONGO_URI = os.getenv("MONGO_URI")  # Set in .env — must be MongoDB Atlas URI
 client = pymongo.MongoClient(MONGO_URI)
-db = client["pharmalink"]
+db = client["medsmart"]
 external_data_col = db["external_health_data"]
 inventory_col     = db["inventory"]
 medicines_col     = db["medicines"]
 diseases_col      = db["diseases"]
 purchases_col     = db["purchases"]
 patient_alerts_col= db["patient_alerts"]
+
+# ─── LIVE DISEASE DATA CACHE ──────────────────────────────────────
+LIVE_DISEASE_CACHE = {
+    "ts": 0.0,
+    "reports": [],
+    "trend": [],
+}
+LIVE_DISEASE_TTL_SEC = 120  # refresh every 2 minutes max
 
 # ─── MASTER DATA (Initial Lists for Seeding) ──────────────────────
 GENERIC_MAP = [
@@ -597,6 +613,161 @@ def get_disease_reports():
                 "trend": r["trend"]
             })
         return jsonify(result)
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+def _to_severity(score: int) -> str:
+    if score >= 20000:
+        return "high"
+    if score >= 3000:
+        return "medium"
+    return "low"
+
+
+def _fetch_live_disease_payload():
+    """
+    Fetches Bengaluru-zone, multi-disease live signals from news mentions.
+    Note: this is outbreak/activity intelligence, not clinical case registry data.
+    """
+    disease_patterns = {
+        "flu": ["influenza", "flu", "h1n1", "avian influenza"],
+        "dengue": ["dengue"],
+        "malaria": ["malaria"],
+        "cholera": ["cholera"],
+        "typhoid": ["typhoid"],
+        "measles": ["measles"],
+        "tb": ["tuberculosis", "tb "],
+        "hepatitis": ["hepatitis"],
+        "cold": ["common cold", "cold virus", "rhinovirus"],
+        "covid": ["covid", "sars-cov-2", "coronavirus"],
+    }
+
+    display_name = {
+        "covid": "COVID-19",
+        "flu": "Influenza/Flu",
+        "dengue": "Dengue",
+        "malaria": "Malaria",
+        "cholera": "Cholera",
+        "typhoid": "Typhoid",
+        "measles": "Measles",
+        "tb": "Tuberculosis",
+        "hepatitis": "Hepatitis",
+        "cold": "Common Cold",
+    }
+
+    # --------- 1) Bengaluru-zone News RSS for multiple diseases ---------
+    today = datetime.utcnow().date()
+    days = [today - timedelta(days=i) for i in range(6, -1, -1)]
+    day_labels = [d.strftime("%d %b") for d in days]
+    label_to_date = {d.strftime("%d %b"): d for d in days}
+
+    # mentions[disease_key][label] = count
+    mentions = {
+        k: {label: 0 for label in day_labels}
+        for k in disease_patterns.keys()
+    }
+
+    def _fetch_mentions_for_disease(d_key: str, terms: list[str]):
+        # Geo-focus to Bengaluru/Karnataka for "zone" level signal
+        geo = "(Bengaluru OR Bangalore OR Karnataka)"
+        query = requests.utils.quote(f"({' OR '.join(terms)}) {geo} when:7d")
+        url = f"https://news.google.com/rss/search?q={query}&hl=en-IN&gl=IN&ceid=IN:en"
+        r = requests.get(url, timeout=12)
+        r.raise_for_status()
+        root = ET.fromstring(r.text)
+        for item in root.findall(".//item"):
+            pub = (item.findtext("pubDate") or "").strip()
+            try:
+                pub_dt = datetime.strptime(pub, "%a, %d %b %Y %H:%M:%S %Z").date()
+            except Exception:
+                continue
+            label = pub_dt.strftime("%d %b")
+            if label in mentions[d_key]:
+                mentions[d_key][label] += 1
+
+    for d_key, terms in disease_patterns.items():
+        try:
+            _fetch_mentions_for_disease(d_key, terms)
+        except Exception:
+            # Keep zeros if an upstream disease feed temporarily fails
+            continue
+
+    # --------- 2) Unified trend for frontend line chart ---------
+    trend = []
+    for d in days:
+        label = d.strftime("%d %b")
+        trend.append({
+            "day": label,
+            "covid": mentions["covid"][label],
+            "flu": mentions["flu"][label],
+            "dengue": mentions["dengue"][label],
+            "malaria": mentions["malaria"][label],
+            "cholera": mentions["cholera"][label],
+            "typhoid": mentions["typhoid"][label],
+            "cold": mentions["cold"][label],
+        })
+
+    # --------- 3) Unified reports cards ---------
+    mention_scores = {
+        k: sum(v.values())
+        for k, v in mentions.items()
+    }
+
+    top_mention_diseases = sorted(mention_scores.items(), key=lambda x: x[1], reverse=True)[:8]
+    reports = []
+    for i, (d_key, score) in enumerate(top_mention_diseases, start=1):
+        # "growth" as last-day mentions compared to avg previous 6 days
+        last_day = mentions[d_key][day_labels[-1]]
+        prev = [mentions[d_key][lbl] for lbl in day_labels[:-1]]
+        prev_avg = (sum(prev) / len(prev)) if prev else 0
+        growth_pct = int(((last_day - prev_avg) / (prev_avg or 1)) * 100)
+        reports.append({
+            "id": f"live-{d_key}-{i}",
+            "disease": display_name.get(d_key, d_key.title()),
+            "cases": int(score),
+            "growth": growth_pct,
+            "severity": "high" if score >= 12 else "medium" if score >= 5 else "low",
+            "source": "Google News RSS — Bengaluru zone",
+            "date": time.strftime("%Y-%m-%d"),
+            "trend": "Rising" if growth_pct > 0 else "Stable",
+        })
+
+    return {"reports": reports, "trend": trend}
+
+
+def _get_live_disease_data():
+    now = time.time()
+    if (
+        LIVE_DISEASE_CACHE["reports"]
+        and LIVE_DISEASE_CACHE["trend"]
+        and now - LIVE_DISEASE_CACHE["ts"] < LIVE_DISEASE_TTL_SEC
+    ):
+        return LIVE_DISEASE_CACHE
+
+    payload = _fetch_live_disease_payload()
+    LIVE_DISEASE_CACHE["ts"] = now
+    LIVE_DISEASE_CACHE["reports"] = payload["reports"]
+    LIVE_DISEASE_CACHE["trend"] = payload["trend"]
+    return LIVE_DISEASE_CACHE
+
+
+@app.route("/api/live-disease-reports", methods=["GET"])
+def live_disease_reports():
+    """Returns real-world disease reports (live COVID-19 data)."""
+    try:
+        data = _get_live_disease_data()
+        return jsonify(data["reports"])
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/live-trend-data", methods=["GET"])
+def live_trend_data():
+    """Returns live global 7-day trend data from disease.sh."""
+    try:
+        data = _get_live_disease_data()
+        return jsonify(data["trend"])
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 

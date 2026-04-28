@@ -35,14 +35,35 @@ export function StoreDashboard() {
   const [platformStats, setPlatformStats] = useState({ pharmacies: 120, criticalAlerts: 0, totalPurchases: 0 });
 
   useEffect(() => {
-    fetch(`${BACKEND_URL}/api/stock-alerts`)
-      .then(r => r.json()).then(d => { if (d.alerts) setLowStock(d.alerts); }).catch(() => {});
-    fetch(`${BACKEND_URL}/api/trend-data`)
-      .then(r => r.json()).then(d => { if (Array.isArray(d) && d.length) setLiveTrend(d); }).catch(() => {});
-    fetch(`${BACKEND_URL}/api/demand-distribution`)
-      .then(r => r.json()).then(d => { if (Array.isArray(d) && d.length) setLiveDonut(d); }).catch(() => {});
-    fetch(`${BACKEND_URL}/api/platform-stats`)
-      .then(r => r.json()).then(d => { if (d.pharmacies !== undefined) setPlatformStats(d); }).catch(() => {});
+    let alive = true;
+    const load = async () => {
+      try {
+        const [stockRes, trendRes, donutRes, statsRes] = await Promise.all([
+          fetch(`${BACKEND_URL}/api/stock-alerts`),
+          fetch(`${BACKEND_URL}/api/live-trend-data`),
+          fetch(`${BACKEND_URL}/api/demand-distribution`),
+          fetch(`${BACKEND_URL}/api/platform-stats`),
+        ]);
+        const stock = stockRes.ok ? await stockRes.json() : {};
+        const trend = trendRes.ok ? await trendRes.json() : [];
+        const donut = donutRes.ok ? await donutRes.json() : [];
+        const stats = statsRes.ok ? await statsRes.json() : {};
+        if (!alive) return;
+        if (stock.alerts) setLowStock(stock.alerts);
+        if (Array.isArray(trend) && trend.length) setLiveTrend(trend);
+        if (Array.isArray(donut) && donut.length) setLiveDonut(donut);
+        if (stats.pharmacies !== undefined) setPlatformStats(stats);
+      } catch {
+        // Keep current UI state if network/live data is unavailable.
+      }
+    };
+
+    load();
+    const id = setInterval(load, 30000);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
   }, []);
 
   return (
@@ -136,18 +157,33 @@ export function StoreDashboard() {
 export function DiseaseMonitor() {
   const { push } = useToast();
   const [reports, setReports] = useState<DiseaseReport[]>(initialDiseases);
-  const [liveTrend, setLiveTrend] = useState<any[]>(trendData);
+  const [liveTrend, setLiveTrend] = useState<any[]>([]);
   const [form, setForm] = useState({ disease: "", cases: "", source: "" });
 
   useEffect(() => {
-    fetch(`${BACKEND_URL}/api/disease-reports`)
-      .then(r => r.json())
-      .then(d => { if (Array.isArray(d) && d.length) setReports(d); })
-      .catch(() => {});
-    fetch(`${BACKEND_URL}/api/trend-data`)
-      .then(r => r.json())
-      .then(d => { if (Array.isArray(d) && d.length) setLiveTrend(d); })
-      .catch(() => {});
+    let alive = true;
+    const load = async () => {
+      try {
+        const [reportsRes, trendRes] = await Promise.all([
+          fetch(`${BACKEND_URL}/api/live-disease-reports`),
+          fetch(`${BACKEND_URL}/api/live-trend-data`),
+        ]);
+        const reportsData = reportsRes.ok ? await reportsRes.json() : [];
+        const trendData = trendRes.ok ? await trendRes.json() : [];
+        if (!alive) return;
+        if (Array.isArray(reportsData) && reportsData.length) setReports(reportsData);
+        if (Array.isArray(trendData) && trendData.length) setLiveTrend(trendData);
+      } catch {
+        // Keep existing fallback data on network/API failure
+      }
+    };
+
+    load();
+    const id = setInterval(load, 30000); // near-real-time refresh
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
   }, []);
 
   function add() {
@@ -160,7 +196,7 @@ export function DiseaseMonitor() {
   }
   return (
     <div className="space-y-6">
-      <SectionHeader title="Outbreak tracking" subtitle="Monitor disease patterns across your region" />
+      <SectionHeader title="Outbreak tracking" subtitle="Monitor disease activity across Bengaluru zone" />
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {reports.map(r => (
           <Card key={r.id} className="space-y-3">
@@ -171,11 +207,11 @@ export function DiseaseMonitor() {
             <div className="flex items-end justify-between">
               <div>
                 <div className="text-3xl font-display font-bold">{r.cases}</div>
-                <div className="text-xs text-muted-foreground">active cases</div>
+                  <div className="text-xs text-muted-foreground">reported activity</div>
               </div>
               <div className="text-right">
-                <div className="text-sm font-medium text-amber">+{r.growth}%</div>
-                <div className="text-[10px] text-muted-foreground">vs last week</div>
+                <div className="text-sm font-medium text-amber">{r.growth > 0 ? `+${r.growth}%` : `${r.growth}%`}</div>
+                <div className="text-[10px] text-muted-foreground">vs 7-day baseline</div>
               </div>
             </div>
             <div className="text-[10px] text-muted-foreground border-t pt-2">{r.source}</div>
@@ -193,9 +229,11 @@ export function DiseaseMonitor() {
                 <XAxis dataKey="day" stroke={axisColor} fontSize={12} tickLine={false} axisLine={false} />
                 <YAxis stroke={axisColor} fontSize={12} tickLine={false} axisLine={false} />
                 <Tooltip content={<ChartTooltip />} />
-                <Line type="monotone" dataKey="flu" name="Flu" stroke="var(--brand)" strokeWidth={2.5} dot={false} />
-                <Line type="monotone" dataKey="viral" name="Viral" stroke="var(--teal)" strokeWidth={2.5} dot={false} />
+                <Line type="monotone" dataKey="covid" name="COVID-19" stroke="var(--brand)" strokeWidth={2.5} dot={false} />
+                <Line type="monotone" dataKey="flu" name="Flu" stroke="var(--teal)" strokeWidth={2.5} dot={false} />
                 <Line type="monotone" dataKey="dengue" name="Dengue" stroke="var(--amber)" strokeWidth={2.5} dot={false} />
+                <Line type="monotone" dataKey="malaria" name="Malaria" stroke="#a78bfa" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="cold" name="Common Cold" stroke="#22d3ee" strokeWidth={2} dot={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -816,7 +854,7 @@ export function Analytics() {
       }).catch(() => {});
 
     // Live 7-day trend
-    fetch(`${BACKEND_URL}/api/trend-data`)
+    fetch(`${BACKEND_URL}/api/live-trend-data`)
       .then(r => r.json())
       .then(d => { if (Array.isArray(d) && d.length) setLiveTrend(d); }).catch(() => {});
 
