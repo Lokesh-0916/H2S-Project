@@ -903,6 +903,7 @@ def ai_suggestions():
 
 # API key chaining — tries each key; moves to next on quota/rate errors
 GEMINI_KEYS = [
+    os.getenv("GEMINI_API_KEY", ""),
     os.getenv("GEMINI_API_KEY_1", ""),
     os.getenv("GEMINI_API_KEY_2", ""),
     os.getenv("GEMINI_API_KEY_3", ""),
@@ -926,8 +927,6 @@ For unrelated questions, politely redirect to PharmaLink topics."""
 @app.route("/api/chat", methods=["POST"])
 def chat():
     try:
-        import google.generativeai as genai
-
         data = request.json or {}
         messages = data.get("messages", [])
         context  = data.get("context", "public")   # public | patient | store
@@ -1006,6 +1005,13 @@ Be professional, data-driven, and give actionable recommendations."""
 
         # ── API key chaining (new google-genai SDK) ───────────────
         last_error = None
+        keys = [k.strip() for k in GEMINI_KEYS if k and k.strip()]
+        if not keys:
+            return jsonify({
+                "error": "Missing Gemini API key. Set GEMINI_API_KEY (or _1/_2/_3) in backend .env",
+                "status": "missing_api_key"
+            }), 500
+
         for key in GEMINI_KEYS:
             if not key or not key.strip():
                 continue
@@ -1043,7 +1049,7 @@ Be professional, data-driven, and give actionable recommendations."""
         }), 429
 
     except ImportError:
-        return jsonify({"error": "Run: pip install google-generativeai"}), 500
+        return jsonify({"error": "Missing SDK. Run: pip install google-genai"}), 500
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

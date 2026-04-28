@@ -70,10 +70,10 @@ export function StoreDashboard() {
     <div className="space-y-6">
       <SectionHeader title="Operations Overview" subtitle="Live snapshot of your network and demand signals" />
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Connected Pharmacies" value={platformStats.pharmacies} accent="brand" icon={<Activity className="w-5 h-5" />} delta="active in DB" />
-        <StatCard label="Critical Alerts" value={lowStock.filter(a => a.severity === "CRITICAL").length || platformStats.criticalAlerts} accent="danger" icon={<AlertTriangle className="w-5 h-5" />} delta="from DB" />
-        <StatCard label="Purchases Logged" value={platformStats.totalPurchases} accent="teal" icon={<Users className="w-5 h-5" />} delta="in DB" />
-        <StatCard label="Forecast Accuracy" value="94%" accent="success" icon={<TrendingUp className="w-5 h-5" />} delta="AI model" />
+        <StatCard label="Connected Pharmacies" value={platformStats.pharmacies} accent="brand" icon={<Activity className="w-5 h-5" />} />
+        <StatCard label="Critical Alerts" value={lowStock.filter(a => a.severity === "CRITICAL").length || platformStats.criticalAlerts} accent="danger" icon={<AlertTriangle className="w-5 h-5" />} />
+        <StatCard label="Purchases Logged" value={platformStats.totalPurchases} accent="teal" icon={<Users className="w-5 h-5" />} />
+        <StatCard label="Forecast Accuracy" value="94%" accent="success" icon={<TrendingUp className="w-5 h-5" />} />
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
@@ -575,9 +575,6 @@ export function Inventory() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <SectionHeader title="Inventory management" subtitle="Track every SKU, edit stock, trigger restock" />
-        <span className={`text-xs px-2 py-1 rounded-full font-medium ${loadingInv ? "bg-muted text-muted-foreground" : "bg-success/15"}`} style={!loadingInv ? { color: "var(--success)" } : {}}>
-          {loadingInv ? "Loading…" : `✅ Live DB · ${items.length} items`}
-        </span>
       </div>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="Total Units" value={total.toLocaleString()} accent="brand" icon={<Package className="w-5 h-5" />} />
