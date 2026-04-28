@@ -326,6 +326,34 @@ def restock_inventory():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
+@app.route("/api/inventory/update-stock", methods=["POST"])
+def update_inventory_stock():
+    """Updates stock to an absolute value for a pharmacy + medicine."""
+    try:
+        data = request.json or {}
+        ph_id = data.get("pharmacyId")
+        medicine = data.get("medicine")
+        stock = int(data.get("stock", -1))
+
+        if not ph_id or not medicine:
+            return jsonify({"status": "error", "message": "pharmacyId and medicine are required"}), 400
+        if stock < 0:
+            return jsonify({"status": "error", "message": "stock must be >= 0"}), 400
+
+        result = inventory_col.update_one(
+            {"pharmacyId": ph_id, "medicine": medicine},
+            {"$set": {"stock": stock}}
+        )
+        if result.modified_count == 0:
+            # Could be either not found OR unchanged value.
+            existing = inventory_col.find_one({"pharmacyId": ph_id, "medicine": medicine})
+            if not existing:
+                return jsonify({"status": "error", "message": "Item not found"}), 404
+        return jsonify({"status": "success", "message": f"Updated stock for {medicine}", "stock": stock})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
 
 @app.route("/api/predict-demand", methods=["POST"])
 def predict_demand():

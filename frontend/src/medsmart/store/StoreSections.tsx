@@ -534,7 +534,30 @@ export function Inventory() {
       .finally(() => setLoadingInv(false));
   }, [user?.token]);
   function startEdit(i: InventoryItem) { setEditing(i.id); setDraft(i.stock); }
-  function save(id: string) { setItems(s => s.map(i => i.id === id ? { ...i, stock: draft } : i)); setEditing(null); push("success", "Stock updated"); }
+  async function save(id: string) {
+    const target = items.find(i => i.id === id);
+    if (!target) return;
+    const nextStock = Math.max(0, draft);
+    const pharmacyId = getPharmacyId();
+
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/inventory/update-stock`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pharmacyId, medicine: target.name, stock: nextStock }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        push("error", err.message || "Failed to update stock in database");
+        return;
+      }
+      setItems(s => s.map(i => i.id === id ? { ...i, stock: nextStock } : i));
+      setEditing(null);
+      push("success", "Stock updated in database");
+    } catch {
+      push("error", "Could not connect to backend. Stock was not saved.");
+    }
+  }
 
   // Derive pharmacyId from logged-in user token
   function getPharmacyId(): string {
