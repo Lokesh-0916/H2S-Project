@@ -28,11 +28,24 @@ function ChartTooltip({ active, payload, label }: any) {
   );
 }
 
+function GraphLoading({ height = "h-64" }: { height?: string }) {
+  return (
+    <div className={`${height} rounded-lg border bg-card/30 p-4 flex flex-col justify-end gap-2 animate-pulse`}>
+      <div className="h-2 w-1/3 bg-muted rounded" />
+      <div className="h-2 w-1/2 bg-muted rounded" />
+      <div className="h-2 w-2/3 bg-muted rounded" />
+      <div className="h-2 w-1/4 bg-muted rounded" />
+    </div>
+  );
+}
+
 export function StoreDashboard() {
   const [lowStock, setLowStock] = useState<any[]>([]);
   const [liveTrend, setLiveTrend] = useState<any[]>(trendData);
   const [liveDonut, setLiveDonut] = useState<any[]>(demandDonut);
   const [platformStats, setPlatformStats] = useState({ pharmacies: 120, criticalAlerts: 0, totalPurchases: 0 });
+  const [loadingTrend, setLoadingTrend] = useState(true);
+  const [loadingDonut, setLoadingDonut] = useState(true);
 
   useEffect(() => {
     let alive = true;
@@ -55,6 +68,11 @@ export function StoreDashboard() {
         if (stats.pharmacies !== undefined) setPlatformStats(stats);
       } catch {
         // Keep current UI state if network/live data is unavailable.
+      } finally {
+        if (alive) {
+          setLoadingTrend(false);
+          setLoadingDonut(false);
+        }
       }
     };
 
@@ -85,36 +103,44 @@ export function StoreDashboard() {
             </div>
             <Badge variant="brand">Live</Badge>
           </div>
-          <div className="h-72">
-            <ResponsiveContainer>
-              <LineChart data={liveTrend}>
-                <CartesianGrid stroke={gridColor} strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="day" stroke={axisColor} fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis stroke={axisColor} fontSize={12} tickLine={false} axisLine={false} />
-                <Tooltip content={<ChartTooltip />} />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Line type="monotone" dataKey="flu" name="Flu" stroke="var(--brand)" strokeWidth={2.5} dot={false} />
-                <Line type="monotone" dataKey="dengue" name="Dengue" stroke="var(--amber)" strokeWidth={2.5} dot={false} />
-                <Line type="monotone" dataKey="malaria" name="Malaria" stroke="var(--teal)" strokeWidth={2.5} dot={false} />
-                <Line type="monotone" dataKey="cholera" name="Cholera" stroke="#a78bfa" strokeWidth={2} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+          {loadingTrend ? (
+            <GraphLoading height="h-72" />
+          ) : (
+            <div className="h-72">
+              <ResponsiveContainer>
+                <LineChart data={liveTrend}>
+                  <CartesianGrid stroke={gridColor} strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="day" stroke={axisColor} fontSize={12} tickLine={false} axisLine={false} />
+                  <YAxis stroke={axisColor} fontSize={12} tickLine={false} axisLine={false} />
+                  <Tooltip content={<ChartTooltip />} />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <Line type="monotone" dataKey="flu" name="Flu" stroke="var(--brand)" strokeWidth={2.5} dot={false} />
+                  <Line type="monotone" dataKey="dengue" name="Dengue" stroke="var(--amber)" strokeWidth={2.5} dot={false} />
+                  <Line type="monotone" dataKey="malaria" name="Malaria" stroke="var(--teal)" strokeWidth={2.5} dot={false} />
+                  <Line type="monotone" dataKey="cholera" name="Cholera" stroke="#a78bfa" strokeWidth={2} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </Card>
 
         <Card>
           <h3 className="font-display font-semibold mb-1">Demand Distribution</h3>
           <p className="text-xs text-muted-foreground mb-3">By category this week</p>
-          <div className="h-60">
-            <ResponsiveContainer>
-              <PieChart>
-                <Pie data={liveDonut} dataKey="value" innerRadius={50} outerRadius={80} paddingAngle={3}>
-                  {liveDonut.map((d, i) => <Cell key={i} fill={d.color} />)}
-                </Pie>
-                <Tooltip content={<ChartTooltip />} />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
+          {loadingDonut ? (
+            <GraphLoading height="h-60" />
+          ) : (
+            <div className="h-60">
+              <ResponsiveContainer>
+                <PieChart>
+                  <Pie data={liveDonut} dataKey="value" innerRadius={50} outerRadius={80} paddingAngle={3}>
+                    {liveDonut.map((d, i) => <Cell key={i} fill={d.color} />)}
+                  </Pie>
+                  <Tooltip content={<ChartTooltip />} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          )}
           <div className="space-y-1.5 mt-2">
             {liveDonut.map(d => (
               <div key={d.name} className="flex items-center justify-between text-xs">
@@ -158,6 +184,7 @@ export function DiseaseMonitor() {
   const { push } = useToast();
   const [reports, setReports] = useState<DiseaseReport[]>(initialDiseases);
   const [liveTrend, setLiveTrend] = useState<any[]>([]);
+  const [loadingTrend, setLoadingTrend] = useState(true);
   const [form, setForm] = useState({ disease: "", cases: "", source: "" });
 
   useEffect(() => {
@@ -175,6 +202,8 @@ export function DiseaseMonitor() {
         if (Array.isArray(trendData) && trendData.length) setLiveTrend(trendData);
       } catch {
         // Keep existing fallback data on network/API failure
+      } finally {
+        if (alive) setLoadingTrend(false);
       }
     };
 
@@ -222,21 +251,25 @@ export function DiseaseMonitor() {
       <div className="grid lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-2">
           <h3 className="font-display font-semibold mb-3">Case Growth Trend</h3>
-          <div className="h-64">
-            <ResponsiveContainer>
-              <LineChart data={liveTrend}>
-                <CartesianGrid stroke={gridColor} strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="day" stroke={axisColor} fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis stroke={axisColor} fontSize={12} tickLine={false} axisLine={false} />
-                <Tooltip content={<ChartTooltip />} />
-                <Line type="monotone" dataKey="covid" name="COVID-19" stroke="var(--brand)" strokeWidth={2.5} dot={false} />
-                <Line type="monotone" dataKey="flu" name="Flu" stroke="var(--teal)" strokeWidth={2.5} dot={false} />
-                <Line type="monotone" dataKey="dengue" name="Dengue" stroke="var(--amber)" strokeWidth={2.5} dot={false} />
-                <Line type="monotone" dataKey="malaria" name="Malaria" stroke="#a78bfa" strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="cold" name="Common Cold" stroke="#22d3ee" strokeWidth={2} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+          {loadingTrend ? (
+            <GraphLoading height="h-64" />
+          ) : (
+            <div className="h-64">
+              <ResponsiveContainer>
+                <LineChart data={liveTrend}>
+                  <CartesianGrid stroke={gridColor} strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="day" stroke={axisColor} fontSize={12} tickLine={false} axisLine={false} />
+                  <YAxis stroke={axisColor} fontSize={12} tickLine={false} axisLine={false} />
+                  <Tooltip content={<ChartTooltip />} />
+                  <Line type="monotone" dataKey="covid" name="COVID-19" stroke="var(--brand)" strokeWidth={2.5} dot={false} />
+                  <Line type="monotone" dataKey="flu" name="Flu" stroke="var(--teal)" strokeWidth={2.5} dot={false} />
+                  <Line type="monotone" dataKey="dengue" name="Dengue" stroke="var(--amber)" strokeWidth={2.5} dot={false} />
+                  <Line type="monotone" dataKey="malaria" name="Malaria" stroke="#a78bfa" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="cold" name="Common Cold" stroke="#22d3ee" strokeWidth={2} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </Card>
         <Card>
           <h3 className="font-display font-semibold mb-3">Log new report</h3>
@@ -856,6 +889,7 @@ export function AutoRedistribute() {
 export function Analytics() {
   const [topMeds, setTopMeds] = useState(medicines.slice(0, 6).map(m => ({ name: m.generic, demand: 50 })));
   const [liveTrend, setLiveTrend] = useState<any[]>(trendData);
+  const [loadingTrend, setLoadingTrend] = useState(true);
   const [adoption, setAdoption] = useState([
     { name: "Generic", value: 62, color: "var(--brand)" },
     { name: "Brand",   value: 38, color: "var(--amber)" },
@@ -876,7 +910,9 @@ export function Analytics() {
     // Live 7-day trend
     fetch(`${BACKEND_URL}/api/live-trend-data`)
       .then(r => r.json())
-      .then(d => { if (Array.isArray(d) && d.length) setLiveTrend(d); }).catch(() => {});
+      .then(d => { if (Array.isArray(d) && d.length) setLiveTrend(d); })
+      .catch(() => {})
+      .finally(() => setLoadingTrend(false));
 
     // Live generic vs brand adoption
     fetch(`${BACKEND_URL}/api/adoption-stats`)
@@ -910,19 +946,23 @@ export function Analytics() {
       <div className="grid lg:grid-cols-2 gap-6">
         <Card>
           <h3 className="font-display font-semibold mb-3">Disease trend</h3>
-          <div className="h-60">
-            <ResponsiveContainer>
-              <LineChart data={liveTrend}>
-                <CartesianGrid stroke={gridColor} strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="day" stroke={axisColor} fontSize={11} tickLine={false} axisLine={false} />
-                <YAxis stroke={axisColor} fontSize={11} tickLine={false} axisLine={false} />
-                <Tooltip content={<ChartTooltip />} />
-                <Line type="monotone" dataKey="flu"     stroke="var(--brand)" strokeWidth={2.5} dot={false} />
-                <Line type="monotone" dataKey="dengue"  stroke="var(--amber)" strokeWidth={2.5} dot={false} />
-                <Line type="monotone" dataKey="malaria" stroke="var(--teal)"  strokeWidth={2.5} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+          {loadingTrend ? (
+            <GraphLoading height="h-60" />
+          ) : (
+            <div className="h-60">
+              <ResponsiveContainer>
+                <LineChart data={liveTrend}>
+                  <CartesianGrid stroke={gridColor} strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="day" stroke={axisColor} fontSize={11} tickLine={false} axisLine={false} />
+                  <YAxis stroke={axisColor} fontSize={11} tickLine={false} axisLine={false} />
+                  <Tooltip content={<ChartTooltip />} />
+                  <Line type="monotone" dataKey="flu"     stroke="var(--brand)" strokeWidth={2.5} dot={false} />
+                  <Line type="monotone" dataKey="dengue"  stroke="var(--amber)" strokeWidth={2.5} dot={false} />
+                  <Line type="monotone" dataKey="malaria" stroke="var(--teal)"  strokeWidth={2.5} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </Card>
         <Card>
           <h3 className="font-display font-semibold mb-3">Inventory health by pharmacy</h3>

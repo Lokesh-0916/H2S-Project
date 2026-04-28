@@ -463,57 +463,94 @@ def stock_alerts():
 @app.route("/api/redistribution", methods=["GET"])
 def redistribution():
     try:
-        # 1. Fetch all inventory
+        # 1. Fetch all inventory rows
         all_items = list(inventory_col.find({}, {"_id": 0}))
-        
-        # 2. Get all pharmacy names/IDs for labeling
-        # For simplicity in this demo, we'll use a mapping or just the IDs
+
+        # 2. Pharmacy labels
         ph_names = {
             "PH001": "MedPlus - Koramangala",
             "PH002": "Apollo Pharmacy - HSR",
             "PH003": "Jan Aushadhi - Indiranagar"
         }
-        
+
         suggestions = []
-        # Group by medicine
         meds = set(item["medicine"] for item in all_items)
-        
+
         for med in meds:
             med_items = [i for i in all_items if i["medicine"] == med]
-            
-            # Find Surplus stores (stock > threshold * 1.2)
-            surplus = [i for i in med_items if i["stock"] > i["threshold"] * 1.2]
-            # Find Shortage stores (stock < threshold)
-            shortage = [i for i in med_items if i["stock"] < i["threshold"]]
-            
-            # Simple matching: Send from biggest surplus to biggest shortage
-            surplus.sort(key=lambda x: x["stock"] - x["threshold"], reverse=True)
-            shortage.sort(key=lambda x: x["stock"] / x["threshold"])
-            
-            if surplus and shortage:
-                s_ph = surplus[0]
-                r_ph = shortage[0]
-                
-                # Recommended quantity: half of the surplus or enough to hit threshold
-                can_give = s_ph["stock"] - s_ph["threshold"]
-                needs = r_ph["threshold"] - r_ph["stock"]
-                qty = min(can_give, needs)
-                
-                if qty > 0:
+
+            # Ignore invalid threshold rows
+            clean = [i for i in med_items if int(i.get("threshold", 0)) > 0]
+            if not clean:
+                continue
+
+            # Donors: stock above threshold + reserve buffer
+            # Receivers: stock below threshold
+            donors = []
+            receivers = []
+            for i in clean:
+                stock = int(i.get("stock", 0))
+                threshold = int(i.get("threshold", 0))
+                reserve = max(10, int(threshold * 0.1))
+                giveable = stock - threshold - reserve
+                need = threshold - stock
+                if giveable > 0:
+                    donors.append({**i, "giveable": int(giveable)})
+                if need > 0:
+                    receivers.append({**i, "need": int(need)})
+
+            if not donors or not receivers:
+                continue
+
+            # Sort largest surplus first, most critical shortages first
+            donors.sort(key=lambda x: x["giveable"], reverse=True)
+            receivers.sort(key=lambda x: (x["stock"] / x["threshold"], -x["need"]))
+
+            # Greedy balancing with multi-pair transfers
+            for rec in receivers:
+                remaining_need = rec["need"]
+                for donor in donors:
+                    if donor["pharmacyId"] == rec["pharmacyId"]:
+                        continue
+                    if donor["giveable"] <= 0 or remaining_need <= 0:
+                        continue
+
+                    qty = min(donor["giveable"], remaining_need)
+                    # Skip tiny noisy moves
+                    if qty < 5:
+                        continue
+
+                    donor["giveable"] -= qty
+                    remaining_need -= qty
+                    rec_after = int(rec["stock"]) + (rec["need"] - remaining_need)
+                    rec_ratio_after = rec_after / rec["threshold"]
+
                     suggestions.append({
-                        "fromId": s_ph["pharmacyId"],
-                        "fromName": ph_names.get(s_ph["pharmacyId"], s_ph["pharmacyId"]),
-                        "toId": r_ph["pharmacyId"],
-                        "toName": ph_names.get(r_ph["pharmacyId"], r_ph["pharmacyId"]),
+                        "fromId": donor["pharmacyId"],
+                        "fromName": ph_names.get(donor["pharmacyId"], donor["pharmacyId"]),
+                        "toId": rec["pharmacyId"],
+                        "toName": ph_names.get(rec["pharmacyId"], rec["pharmacyId"]),
                         "medicine": med,
                         "quantity": int(qty),
-                        "surplus": s_ph["stock"],
-                        "current": r_ph["stock"],
-                        "threshold": r_ph["threshold"],
-                        "urgency": "URGENT" if r_ph["stock"] < r_ph["threshold"] * 0.3 else "MODERATE"
+                        "surplus": int(donor["stock"]),
+                        "current": int(rec["stock"]),
+                        "threshold": int(rec["threshold"]),
+                        "after": int(rec_after),
+                        "coverageAfterPct": int(round(rec_ratio_after * 100)),
+                        "urgency": (
+                            "URGENT" if (rec["stock"] / rec["threshold"]) < 0.3
+                            else "HIGH" if (rec["stock"] / rec["threshold"]) < 0.6
+                            else "MODERATE"
+                        )
                     })
-        
-        return jsonify({"suggestions": suggestions})
+
+                    if remaining_need <= 0:
+                        break
+
+        # Prioritize urgent + larger impact, cap noisy list size
+        order = {"URGENT": 0, "HIGH": 1, "MODERATE": 2}
+        suggestions.sort(key=lambda s: (order.get(s["urgency"], 3), -s["quantity"]))
+        return jsonify({"suggestions": suggestions[:30]})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -861,65 +898,122 @@ def record_purchase():
 
 @app.route("/api/ai-suggestions", methods=["GET"])
 def ai_suggestions():
-    """Generates restock recommendations from low-stock items + disease demand."""
+    """Generates practical restock recommendations from inventory + demand signals."""
     try:
-        # 1. Get low-stock items
-        low_items = list(inventory_col.find(
-            {"$expr": {"$lt": ["$stock", "$threshold"]}},
-            {"_id": 0}
-        ))
-        # 2. Get outbreak data to find disease-driven demand
-        outbreak_doc = external_data_col.find_one({"type": "alerts"}, {"_id": 0})
-        high_outbreak = []
-        if outbreak_doc:
-            high_outbreak = [r["disease"] for r in outbreak_doc["data"] if r["level"] == "HIGH"]
+        # 1) Fetch full inventory + master mappings
+        all_items = list(inventory_col.find({}, {"_id": 0}))
+        meds_master = list(medicines_col.find({}, {"_id": 0}))
+        med_to_category = {m.get("generic", ""): m.get("category", "Other") for m in meds_master}
 
-        # 3. Get disease demand profiles
+        # 2) Candidate items: below threshold only
+        low_items = [
+            i for i in all_items
+            if int(i.get("threshold", 0)) > 0 and int(i.get("stock", 0)) < int(i.get("threshold", 0))
+        ]
+
+        # 3) Live disease pressure (if available)
+        # Map live trend keys to disease names in DISEASE_DEMAND/mongo disease profiles.
+        key_to_disease = {
+            "flu": "Flu/Influenza",
+            "dengue": "Dengue",
+            "malaria": "Malaria",
+            "cholera": "Cholera",
+            "typhoid": "Typhoid",
+            "covid": "COVID-19",
+        }
+        trend_last = {}
+        try:
+            live = _get_live_disease_data()
+            if live.get("trend"):
+                trend_last = live["trend"][-1]
+        except Exception:
+            trend_last = {}
+
         disease_profiles = {d["name"]: d for d in diseases_col.find({}, {"_id": 0})}
+        active_diseases = []
+        for key, disease_name in key_to_disease.items():
+            score = int(trend_last.get(key, 0) or 0)
+            if score > 0:
+                active_diseases.append((disease_name, score))
 
-        # 4. Find medicines that are low AND in high-outbreak disease demand
-        demanded = set()
-        for disease in set(high_outbreak):
-            if disease in disease_profiles:
-                demanded.update(disease_profiles[disease].get("medicines", []))
+        # Medicines demanded by currently active diseases
+        disease_demanded_meds = set()
+        for disease_name, _ in active_diseases:
+            prof = disease_profiles.get(disease_name)
+            if prof:
+                for med in prof.get("medicines", []):
+                    disease_demanded_meds.add(med.lower())
 
-        # 5. Build suggestions
-        suggestions = []
-        seen = set()
-        for item in sorted(low_items, key=lambda x: x["stock"] / x["threshold"]):
-            med = item["medicine"]
-            if med in seen:
+        # 4) Score and rank by true shortage + velocity + demand pressure
+        scored = []
+        for item in low_items:
+            stock = int(item.get("stock", 0))
+            threshold = int(item.get("threshold", 0))
+            sold = int(item.get("sold", 0))  # cumulative proxy for velocity
+            med = str(item.get("medicine", ""))
+            if threshold <= 0:
                 continue
-            seen.add(med)
-            ratio    = item["stock"] / item["threshold"]
-            urgency  = 95 if ratio < 0.3 else 82 if ratio < 0.6 else 65
-            # Boost urgency if disease-driven
-            if any(med.lower() in d.lower() or d.lower() in med.lower() for d in demanded):
-                urgency = min(99, urgency + 10)
-            qty_needed = item["threshold"] + 50 - item["stock"]
-            reason = (
-                f"Stock at {round(ratio*100)}% of threshold. "
-                + (f"High disease demand detected ({', '.join(high_outbreak[:2])})." if demanded else "")
-            )
-            suggestions.append({
-                "id": len(suggestions) + 1,
-                "name": med,
-                "urgency": urgency,
-                "qty": int(qty_needed),
-                "reason": reason,
-                "pharmacyId": item["pharmacyId"]
-            })
-            if len(suggestions) >= 5:
-                break
 
-        # 6. Summary stats
-        rising_diseases = [r["disease"] for r in (outbreak_doc["data"] if outbreak_doc else []) if r["trend"] == "Rising"]
+            shortage_ratio = max(0.0, (threshold - stock) / threshold)  # 0..1+
+            velocity_score = min(1.0, sold / 250.0)  # normalized
+            demand_boost = 1.0 if med.lower() in disease_demanded_meds else 0.0
+
+            # Weighted urgency score (0-99)
+            urgency = round(min(
+                99,
+                45 + (shortage_ratio * 35) + (velocity_score * 12) + (demand_boost * 7)
+            ))
+
+            # Qty recommendation:
+            # - fill deficit to threshold
+            # - add small velocity-aware safety buffer
+            deficit = max(0, threshold - stock)
+            buffer_units = int(max(10, min(80, sold * 0.15)))
+            qty = deficit + buffer_units
+
+            reasons = [f"Stock {stock}/{threshold} ({round((stock/threshold)*100)}% of threshold)"]
+            if sold > 0:
+                reasons.append(f"High sales velocity ({sold} units sold)")
+            if demand_boost > 0:
+                top_dis = sorted(active_diseases, key=lambda x: x[1], reverse=True)[:2]
+                if top_dis:
+                    reasons.append(f"Disease pressure: {', '.join(d for d, _ in top_dis)}")
+
+            scored.append({
+                "medicine": med,
+                "pharmacyId": item.get("pharmacyId"),
+                "urgency": urgency,
+                "qty": int(qty),
+                "reason": ". ".join(reasons) + ".",
+                "shortage_ratio": shortage_ratio,
+                "category": med_to_category.get(med, "Other"),
+            })
+
+        scored.sort(key=lambda x: (-x["urgency"], -x["shortage_ratio"], -x["qty"]))
+
+        suggestions = []
+        for i, s in enumerate(scored[:5], start=1):
+            suggestions.append({
+                "id": i,
+                "name": s["medicine"],
+                "urgency": s["urgency"],
+                "qty": s["qty"],
+                "reason": s["reason"],
+                "pharmacyId": s["pharmacyId"],
+                "category": s["category"],
+            })
+
+        # 5) Summary stats
+        rising_diseases = [d for d, score in active_diseases if score > 0]
         return jsonify({
             "suggestions": suggestions,
             "stats": {
                 "trend": "Rising" if rising_diseases else "Stable",
-                "velocity": f"+{len(rising_diseases)}% regions",
-                "criticalItems": sum(1 for i in low_items if i["stock"] / i["threshold"] < 0.3),
+                "velocity": f"{len(rising_diseases)} active disease signals",
+                "criticalItems": sum(
+                    1 for i in low_items
+                    if int(i.get("threshold", 1)) > 0 and (int(i.get("stock", 0)) / int(i.get("threshold", 1))) < 0.3
+                ),
                 "confidence": 94
             }
         })
